@@ -34,6 +34,7 @@ yaml = ["pyyaml>=6.0"]
 requests = ["requests>=2.28"]
 observability = ["prometheus-client>=0.16"]
 validate = ["jsonschema>=4.0"]
+mcp = ["mcp>=2.0"]
 playwright = ["playwright>=1.40"]
 dev = [
     "pytest>=7.0",
@@ -44,6 +45,8 @@ dev = [
     "requests>=2.28",
     "prometheus-client>=0.16",
     "playwright>=1.40",
+    "langchain-core>=0.3",
+    "mcp>=2.0",
 ]
 
 [project.urls]
@@ -52,6 +55,7 @@ Specification = "https://github.com/AdityaPandey0901/considerate/blob/main/SPEC.
 
 [project.scripts]
 considerate = "considerate.cli:main"
+considerate-mcp = "considerate.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/considerate"]

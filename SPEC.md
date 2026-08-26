@@ -270,9 +270,6 @@ explicit rather than implied:
   fragility independently. Needs careful design so the registry itself
   doesn't become a fingerprinting or privacy surface (e.g., a domain
   should not be able to tell *which* agents queried it).
-- **MCP server wrapper** — expose the client as an MCP tool so any
-  MCP-compatible agent gets this behavior with no code, following the
-  same "capability, not config" philosophy as the rest of the protocol.
 - **Full Web Bot Auth interop** — v0.2 added the `verified_agents` policy
   field and a `verified_identity` client parameter (§2, §6), but
   considerate performs no cryptographic verification itself; a real
@@ -285,7 +282,13 @@ explicit rather than implied:
 
 ## Change log
 
-- **v0.2** — added `disallow_paths` (enforced in addition to `robots.txt`
+- **v0.2** — added an MCP server wrapper (`considerate-mcp`, `fetch` +
+  `considerate_status` tools) so any MCP-compatible agent gets this
+  behavior with no code, following the same "capability, not config"
+  philosophy as the rest of the protocol; a `requests` Transport Adapter
+  and a Playwright browser-navigation wrapper (`considerate.browser`), so
+  browser agents that never make an HTTP call directly are covered too;
+  added `disallow_paths` (enforced in addition to `robots.txt`
   `Disallow`) and `crawl_windows` (time-of-day/day-of-week rate
   multipliers) to the policy file; added the experimental
   `verified_agents` field and `verified_identity` client parameter for

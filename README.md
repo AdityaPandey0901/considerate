@@ -252,9 +252,18 @@ docstring.
 **Tool-calling agents** (LangChain, CrewAI, any framework that accepts a
 plain Python callable): see
 [`examples/langchain_tool_example.py`](./examples/langchain_tool_example.py)
+and [`examples/crewai_tool_example.py`](./examples/crewai_tool_example.py)
 for wrapping `ConsiderateClient` as a tool, so an agent given an open-ended
 "scrape N pages" task self-limits without the developer having to think
 about it.
+
+**Any MCP-compatible agent** (Claude Desktop, or any other MCP host) gets
+this with zero wrapper code via the bundled MCP server:
+
+```bash
+pip install considerate[mcp]
+considerate-mcp   # exposes a `fetch` tool and a `considerate_status` tool
+```
 
 ## Configuration (optional)
 
