@@ -71,7 +71,14 @@ def _classify_requests_failure(exc: Exception) -> str:
     return "transport_error"
 
 
-class ConsiderateAdapter(HTTPAdapter, _SharedLogic):
+class ConsiderateAdapter(HTTPAdapter, _SharedLogic):  # type: ignore[misc]
+    # The ignore above is for a genuine, irreducible static-typing artifact
+    # of this dual inheritance: HTTPAdapter declares `self.config: dict`
+    # and `_SharedLogic` declares `self.config: ConsiderateConfig` — mypy
+    # correctly flags that as incompatible. At runtime it's a non-issue:
+    # this class never uses `_SharedLogic`'s `config` (see the note above
+    # `_new_domain_state`/`_touch_domain` below) — it overrides every
+    # method that would touch it, using `considerate_config` instead.
     def __init__(
         self,
         identity: AgentIdentity | None = None,
@@ -200,20 +207,35 @@ class ConsiderateAdapter(HTTPAdapter, _SharedLogic):
 
     # -- the actual Transport Adapter hook -----------------------------------
 
-    def send(self, request: "requests.PreparedRequest", **kwargs: Any) -> "requests.Response":
-        host = requests.utils.urlparse(request.url).hostname
+    def send(
+        self,
+        request: "requests.PreparedRequest",
+        stream: bool = False,
+        timeout: Any = None,
+        verify: "bool | str" = True,
+        cert: Any = None,
+        proxies: "dict[str, str] | None" = None,
+    ) -> "requests.Response":
+        # PreparedRequest.url is typed as `str | bytes | None` (it can hold
+        # bytes internally); in every path considerate's own code takes,
+        # it's already a plain str by the time send() runs.
+        assert isinstance(request.url, str), f"expected a str URL, got {type(request.url).__name__}"
+        url: str = request.url
+
+        host = requests.utils.urlparse(url).hostname
+        assert host is not None, f"could not determine a host from {url!r}"
         state = self._get_domain(host)
 
         self._ensure_policy(state, host)
 
-        robots_parser = getattr(state, "robots_parser", None)
+        robots_parser = state.robots_parser
         if self.considerate_config.respect_robots_txt and robots_parser is not None:
-            if not robots_parser.can_fetch(self.identity.name, request.url):
-                emit(self.on_event, "disallowed", host, url=request.url)
-                raise DisallowedError(request.url)
-        if state.is_path_disallowed(requests.utils.urlparse(request.url).path):
-            emit(self.on_event, "disallowed", host, url=request.url, source="considerate.json disallow_paths")
-            raise DisallowedError(request.url)
+            if not robots_parser.can_fetch(self.identity.name, url):
+                emit(self.on_event, "disallowed", host, url=url)
+                raise DisallowedError(url)
+        if state.is_path_disallowed(requests.utils.urlparse(url).path):
+            emit(self.on_event, "disallowed", host, url=url, source="considerate.json disallow_paths")
+            raise DisallowedError(url)
 
         state.refresh_effective_ceiling()
         allowed, retry_after = state.breaker.check()
@@ -231,7 +253,7 @@ class ConsiderateAdapter(HTTPAdapter, _SharedLogic):
 
             start = time.monotonic()
             try:
-                response = super().send(request, **kwargs)
+                response = super().send(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
             except requests.exceptions.RequestException as exc:
                 state.controller.report_failure()
                 state.breaker.report_failure(_classify_requests_failure(exc))

@@ -32,9 +32,31 @@ implementation as the reference client, not the source of truth.
 
 ## Tests
 
-No network calls in the test suite — `httpx.MockTransport` stands in for
-the target site in `tests/test_client.py`. If you add a new fallback path
-(a new policy signal, a new degradation heuristic), add a test for it at
-the same layer it lives in (unit test in `test_policy.py`/`test_controller.py`
-if it's pure logic; only add to `test_client.py` if it's genuinely about the
+No real network calls in the default test run — `httpx.MockTransport`
+stands in for the target site in `tests/test_client.py`, and a real local
+`http.server` stands in where MockTransport can't reach (browser tests,
+the live demo). If you add a new fallback path (a new policy signal, a new
+degradation heuristic), add a test for it at the same layer it lives in
+(unit test in `test_policy.py`/`test_controller.py` if it's pure logic;
+only add to `test_client.py` if it's genuinely about the
 request-orchestration glue).
+
+A few tests do hit the real internet, deliberately: they're marked
+`@pytest.mark.network` and excluded by default (`addopts` in
+`pyproject.toml`). Run them explicitly with `pytest -m network` — they run
+on a weekly schedule in CI (`.github/workflows/network-smoke.yml`), not on
+every push, since a network smoke test is a periodic reality check on the
+mocked suite, not a substitute for it.
+
+Property-based tests (`test_controller_properties.py`,
+`test_policy_fuzz.py`) use Hypothesis to check invariants across generated
+inputs rather than fixed scenarios — reach for these when adding a new
+piece of stateful logic (the AIMD controller, the policy parser) rather
+than only adding another example-based case.
+
+```bash
+pytest -q                              # the default suite (network tests excluded)
+pytest -q -m network                   # opt-in real-internet smoke tests
+pytest -q --cov=considerate --cov-report=term-missing   # coverage (floor: 75%, see pyproject.toml)
+mypy src/considerate                   # type checking; the package ships py.typed
+```

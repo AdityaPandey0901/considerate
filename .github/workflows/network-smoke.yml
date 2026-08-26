@@ -1,0 +1,23 @@
+name: Network smoke tests
+
+# Deliberately separate from ci.yml and NOT run on every push — these hit
+# the real internet (example.com, google.com's robots.txt) and would be
+# both slower and less reliable than the mocked suite if run per-commit.
+# A weekly cadence is enough to catch httpx/considerate drifting from how
+# a real server actually behaves; workflow_dispatch lets anyone run it
+# on demand too.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # 06:00 UTC every Monday
+  workflow_dispatch:
+
+jobs:
+  network-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q -m network

@@ -10,7 +10,8 @@ degradation signals; sites can optionally publish
 `../agent-scraping-safety-spec.md`.
 
 ## Tech Stack
-Python 3.9+, `httpx` (sync + async), stdlib `urllib.robotparser` for
+Python 3.10+ (bumped from 3.9 once CI actually ran on 3.9 and broke — see
+Learnings below), `httpx` (sync + async), stdlib `urllib.robotparser` for
 robots.txt. Optional `pyyaml` for config files. Tests: `pytest` +
 `pytest-asyncio`, no real network calls (`httpx.MockTransport`). Packaged
 with hatchling. Own `.venv/` in this directory — do not use the parent
@@ -29,6 +30,17 @@ with hatchling. Own `.venv/` in this directory — do not use the parent
   README/code as the reference implementation of it.
 
 ## Learnings & Notes
+- **CI had been red since section A and nobody (i.e. me) checked** — local
+  venvs were always 3.10+, so `X | Y` union syntax in test files (no
+  `from __future__ import annotations` needed there since src/ always had
+  it, but tests/ didn't) silently broke Python 3.9 in CI for four straight
+  pushes. Also `mcp>=2.0` (added in section E) has no 3.9 wheel at all, so
+  `pip install -e ".[dev]"` would have failed outright on 3.9 regardless.
+  Python 3.9 reached EOL in Oct 2025 anyway, so the fix was dropping it
+  (`requires-python = ">=3.10"`), not chasing compatibility with an
+  unsupported interpreter. Lesson: `gh run list` after every push that
+  touches CI-relevant files (deps, Python version matrix, new test files)
+  — passing tests locally is not the same claim as passing CI.
 - `requests.adapters.HTTPAdapter.__init__` unconditionally sets
   `self.config = {}` for its own urllib3 pool/proxy bookkeeping — a real
   attribute name collision if a subclass (`ConsiderateAdapter`) also wants

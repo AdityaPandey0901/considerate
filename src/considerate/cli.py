@@ -206,7 +206,7 @@ def cmd_probe(args: argparse.Namespace) -> int:
 def _load_schema() -> dict:
     import importlib.resources
 
-    text = importlib.resources.files("considerate").joinpath("schema", "considerate.schema.json").read_text()
+    text = (importlib.resources.files("considerate") / "schema" / "considerate.schema.json").read_text()
     return json.loads(text)
 
 

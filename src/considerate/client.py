@@ -26,6 +26,7 @@ import httpx
 from ._cache import PersistentPolicyCache, load_fresh
 from ._domain import DomainState
 from ._redirects import is_redirect, next_hop
+from ._types import ResponseLike
 from ._util import classify_transport_failure, parse_retry_after
 from .config import ConsiderateConfig
 from .events import EventCallback, emit
@@ -47,7 +48,23 @@ class _SharedLogic:
     domain state, parsing meta-fetch responses, deciding what a response
     outcome means for the controller/breaker, and LRU bookkeeping. Neither
     method here ever awaits or blocks — that's entirely the callers' job.
+
+    Every concrete subclass (`ConsiderateClient`, `AsyncConsiderateClient`,
+    `ConsiderateAdapter`, the browser wrapper classes) sets these in its own
+    `__init__` — declared here, without values, purely so a type checker
+    knows they exist rather than flagging every reference in this mixin as
+    an unknown attribute. `ConsiderateAdapter` is the one exception for
+    `config` specifically (see its module for why) — it satisfies this
+    Protocol-by-convention with `considerate_config` instead and overrides
+    the two methods here that touch `config` directly.
     """
+
+    config: ConsiderateConfig
+    identity: AgentIdentity
+    on_event: EventCallback | None
+    verified_identity: str | None
+    _domains: "OrderedDict[str, DomainState]"
+    _persistent_cache: PersistentPolicyCache | None
 
     def _init_persistent_cache(self) -> None:
         path = self.config.policy_cache_path
@@ -106,7 +123,7 @@ class _SharedLogic:
             "circuit_state": state.breaker.state.value,
         }
 
-    def _record_outcome(self, state: DomainState, host: str, response: httpx.Response, latency: float) -> None:
+    def _record_outcome(self, state: DomainState, host: str, response: ResponseLike, latency: float) -> None:
         if not state.calibrated:
             state.apply_inference(latency, response.headers)
 
@@ -267,7 +284,7 @@ class ConsiderateClient(_SharedLogic):
 
         self._ensure_policy(state, host)
 
-        robots_parser = getattr(state, "robots_parser", None)
+        robots_parser = state.robots_parser
         if self.config.respect_robots_txt and robots_parser is not None:
             if not robots_parser.can_fetch(self.identity.name, url):
                 emit(self.on_event, "disallowed", host, url=url)
@@ -457,7 +474,7 @@ class AsyncConsiderateClient(_SharedLogic):
 
         await self._ensure_policy(state, host)
 
-        robots_parser = getattr(state, "robots_parser", None)
+        robots_parser = state.robots_parser
         if self.config.respect_robots_txt and robots_parser is not None:
             if not robots_parser.can_fetch(self.identity.name, url):
                 emit(self.on_event, "disallowed", host, url=url)

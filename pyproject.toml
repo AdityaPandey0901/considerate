@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "A drop-in, respectful rate-limiting layer for agents that fetch or scrape the web — protects the site being visited, not just the agent visiting it."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Aditya Pandey" }]
 keywords = [
     "agents",
@@ -47,6 +47,8 @@ dev = [
     "playwright>=1.40",
     "langchain-core>=0.3",
     "mcp>=2.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.8",
 ]
 
 [project.urls]
@@ -63,3 +65,26 @@ packages = ["src/considerate"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "network: hits the real internet (example.com, google.com robots.txt); excluded by default, run explicitly with `pytest -m network`",
+]
+addopts = "-m 'not network'"
+
+[tool.coverage.run]
+source = ["considerate"]
+
+[tool.mypy]
+python_version = "3.10"  # matches requires-python above
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[tool.coverage.report]
+# 75%, not higher: honest floor for what's actually exercised in-process
+# today, not a claim of exhaustive coverage. AsyncConsiderateBrowserPage in
+# particular is undercounted — its only test runs in a genuinely separate
+# subprocess (see tests/_async_browser_subprocess.py's docstring), whose
+# coverage this tool can't see without extra COVERAGE_PROCESS_START
+# plumbing not yet set up. Raise this floor as real coverage improves;
+# don't lower it to make a change fit.
+fail_under = 75
+exclude_lines = ["if __name__ == .__main__.:"]

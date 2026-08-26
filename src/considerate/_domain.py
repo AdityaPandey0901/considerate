@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
+from typing import Any
+from urllib import robotparser
 
 from .breaker import CircuitBreaker
 from .config import ConsiderateConfig
@@ -38,7 +40,7 @@ class DomainState:
 
         self.policy: SitePolicy | None = None
         self.policy_fetched_at: float | None = None
-        self.robots_parser = None  # urllib.robotparser.RobotFileParser, once fetched
+        self.robots_parser: robotparser.RobotFileParser | None = None  # set once fetched
         self.calibrated = False  # has the first real request refined our tier guess?
 
         tier = config.tier_for_domain(host)
@@ -123,7 +125,7 @@ class DomainState:
             return 0.0
         return max(0.0, self.retry_not_before - time.monotonic())
 
-    def apply_inference(self, ttfb: float, headers) -> None:
+    def apply_inference(self, ttfb: float, headers: Any) -> None:
         """Refine the initial tier guess from the very first real request's
         timing/headers — no separate probe request, per the spec's "no burst
         probing" principle. No-op if an explicit policy already applies.

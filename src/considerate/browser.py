@@ -79,7 +79,7 @@ class _BrowserSharedLogic(_SharedLogic):
     """
 
     def _check_disallowed(self, state: DomainState, host: str, url: str) -> None:
-        robots_parser = getattr(state, "robots_parser", None)
+        robots_parser = state.robots_parser
         if self.config.respect_robots_txt and robots_parser is not None:
             if not robots_parser.can_fetch(self.identity.name, url):
                 emit(self.on_event, "disallowed", host, url=url)

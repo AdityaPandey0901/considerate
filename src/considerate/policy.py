@@ -168,7 +168,8 @@ def parse_well_known(raw: bytes | str) -> SitePolicy:
     default = _rule(default_obj) if isinstance(default_obj, dict) else RateRule()
 
     def _agent_map(key: str) -> dict[str, RateRule]:
-        obj = data.get(key) if isinstance(data.get(key), dict) else {}
+        raw_obj = data.get(key)
+        obj: dict = raw_obj if isinstance(raw_obj, dict) else {}
         return {name: _rule(rule_obj) for name, rule_obj in obj.items() if isinstance(rule_obj, dict)}
 
     agents = _agent_map("agents")
@@ -214,11 +215,15 @@ def parse_robots_crawl_delay(robots_txt: str, user_agent: str = "*", url_for_che
     delay = parser.crawl_delay(user_agent)
     if delay is None:
         delay = parser.crawl_delay("*")
-    if not delay or delay <= 0:
+    # typeshed types RobotFileParser.crawl_delay as returning `str | None`;
+    # at runtime it's already numeric. Converting explicitly here satisfies
+    # the type checker and is a harmless no-op either way.
+    delay_seconds = float(delay) if delay is not None else None
+    if not delay_seconds or delay_seconds <= 0:
         return None, parser
 
     policy = SitePolicy(
-        default=RateRule(requests_per_second=1.0 / float(delay)),
+        default=RateRule(requests_per_second=1.0 / delay_seconds),
         source="robots-crawl-delay",
     )
     return policy, parser
