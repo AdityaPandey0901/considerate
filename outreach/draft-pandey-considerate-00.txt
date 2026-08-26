@@ -1,0 +1,351 @@
+
+
+
+Internet Engineering Task Force                              A. Pandey
+Internet-Draft                                       considerate.io
+Intended status: Informational
+Expires: 27 February 2027                                26 August 2026
+
+
+              The Considerate Protocol: Capacity-Aware
+                    Rate Limiting for Web Agents
+                     draft-pandey-considerate-00
+
+Abstract
+
+   This document describes the Considerate Protocol, a lightweight
+   mechanism by which an HTTP origin server may declare its request-
+   handling capacity to automated clients ("agents"), and by which an
+   agent identifies itself and commits to a documented set of runtime
+   behaviors (adaptive rate control, and a full stop on sustained
+   failure) in response.  The protocol is designed to compose with,
+   not replace, the Robots Exclusion Protocol [RFC9309], and to serve
+   as a low-barrier floor beneath heavier-weight mechanisms such as
+   cryptographic bot authentication, for the large population of
+   origins that cannot adopt those mechanisms today.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  This is a draft submitted for publication as an
+   Independent Submission and does not represent the consensus of any
+   IETF working group.
+
+   Internet-Drafts are draft documents valid for a maximum of six
+   months and may be updated, replaced, or obsoleted by other
+   documents at any time.  It is inappropriate to use Internet-Drafts
+   as reference material or to cite them other than as "work in
+   progress."
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+   3.  The Agent Identity Header
+     3.1.  Grammar
+     3.2.  Required Agent Behavior
+   4.  The Site Policy Resource
+     4.1.  Discovery and Caching
+     4.2.  Field Reference
+   5.  Fallback Capacity Inference
+   6.  Security Considerations
+   7.  Privacy Considerations
+   8.  IANA Considerations
+   9.  Relationship to Other Work
+   10. References
+     10.1. Normative References
+     10.2. Informative References
+   Appendix A.  Change Log
+   Author's Address
+
+1.  Introduction
+
+   [RFC9309] answers "which resources may an automated client
+   retrieve."  It does not answer "at what rate," and the ad hoc
+   Crawl-delay extension that some origins use to approximate an
+   answer is unauthenticated, unauthorized by this specification,
+   inconsistently implemented, and static -- it cannot express "here
+   is a higher rate for an agent I recognize" or react to observed
+   degradation.
+
+   This gap matters in proportion to the growth of automated,
+   goal-directed HTTP clients ("agents") driven by large language
+   models, which are frequently given open-ended tasks ("retrieve
+   these N documents") without an operator in the loop reasoning
+   about the target's capacity the way a human author of a scraper
+   conventionally would.
+
+   This document specifies two complementary mechanisms:
+
+   *  An HTTP request header (Section 3) by which an agent identifies
+      itself, and a normative behavioral contract for how a compliant
+      agent MUST react to standard HTTP signals indicating server
+      distress.
+
+   *  A JSON resource (Section 4) by which an origin MAY declare an
+      explicit rate ceiling, optionally varying by agent identity and
+      by time of day, requiring no cryptography and no dependency on a
+      third-party service.
+
+   Neither mechanism requires the other to be useful in isolation.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY",
+   and "OPTIONAL" in this document are to be interpreted as described
+   in BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in
+   all capitals, as shown here.
+
+   Origin, agent, and other HTTP terms are used as defined in
+   [RFC9110].
+
+3.  The Agent Identity Header
+
+   A compliant agent SHOULD include the following request header on
+   every request:
+
+      Considerate-Agent: name="MyResearchBot", version="1.0",
+                          intent="bulk-scrape",
+                          contact="mailto:ops@example.com"
+
+3.1.  Grammar
+
+   The header value is a Dictionary as defined by Structured Field
+   Values for HTTP [RFC8941], restricted in practice to string-valued
+   members; this specification does not currently define any use for
+   Inner Lists or Parameters within it.
+
+   name (required):  A stable identifier for the agent.  Origins
+      match this value against the "agents" map of Section 4; it
+      SHOULD remain constant across versions of the same agent.
+
+   version (optional):  A free-form version string.
+
+   intent (optional):  One of "browse", "bulk-scrape", "monitor",
+      "research", or an unregistered extension value.  Purely
+      informational.
+
+   contact (recommended):  A "mailto:" or "https:" URI at which a
+      human responsible for the agent's traffic can be reached.
+
+   This self-declared identity is a courtesy, not an authentication
+   mechanism; see Section 6 and Section 9's discussion of Web Bot Auth
+   for a complementary mechanism providing a stronger guarantee.
+
+3.2.  Required Agent Behavior
+
+   Sending the header without implementing this subsection is not
+   compliant with this specification, and produces a false impression
+   of good-faith behavior.  A compliant agent:
+
+   *  MUST treat a 429 (Too Many Requests) or 503 (Service
+      Unavailable) response ([RFC9110] Section 15.5.5, 15.6.4), or a
+      sustained increase in response latency, as an immediate signal
+      to at least halve its request rate to the origin.
+
+   *  MUST honor a Retry-After response header field ([RFC9110]
+      Section 10.2.3) as a floor on its next request to the origin,
+      not merely as a suggestion.
+
+   *  MUST, after a small number of consecutive failures or a
+      sustained high error rate, stop sending requests to the origin
+      entirely -- distinct from, and in addition to, reducing its
+      rate -- until a single successful probe request confirms
+      recovery.
+
+   *  MUST NOT retry a failed request into an origin currently in the
+      stopped state described above.
+
+4.  The Site Policy Resource
+
+   An origin MAY publish a JSON resource at the well-known URI
+   "/.well-known/considerate.json" [RFC8615].
+
+4.1.  Discovery and Caching
+
+   An agent fetches this resource via GET over HTTPS at most once per
+   origin per caching interval (24 hours is RECOMMENDED absent other
+   guidance), falling back to HTTP only when HTTPS is unavailable.
+   This fetch is exempt from the rate control described in Section 3,
+   being comparable in cost and frequency to an agent's existing
+   practice of fetching "/robots.txt".
+
+   A missing resource, or a non-2xx response retrieving it, MUST be
+   treated identically to an origin that has not published a policy
+   (Section 5 then applies) and MUST NOT be treated as an error
+   condition by the agent.
+
+   Malformed JSON, or JSON not matching an Object at the top level,
+   MUST be treated identically to a missing resource.  Unrecognized
+   member names MUST be ignored, to preserve forward compatibility.
+
+4.2.  Field Reference
+
+   version:  A string identifying the schema version this document
+      targets.
+
+   contact:  A "mailto:" or "https:" URI for the origin operator.
+
+   default:  A Rate Rule (below) applied to a request that omits the
+      header in Section 3, or that supplies a "name" absent from
+      "agents".
+
+   agents:  A map from a "name" value (Section 3.1) to a Rate Rule
+      overriding "default" for that agent specifically.  A member
+      keyed "*" applies to any request that supplies an identity not
+      otherwise matched, distinct from "default".
+
+   disallow_paths:  An array of path prefixes, checked in addition to
+      (not in place of) "Disallow" directives in "/robots.txt"
+      [RFC9309].
+
+   crawl_windows:  An array of time-based rate multipliers, each an
+      object with optional "days" (an array drawn from the set {mon,
+      tue, wed, thu, fri, sat, sun}), optional "hours" (a string of
+      the form "HH:MM-HH:MM", interpreted in UTC and permitted to
+      span midnight), and "multiplier" (a number greater than zero).
+      When multiple windows are simultaneously active, the largest
+      applicable multiplier applies.
+
+   A Rate Rule is an object with the following optional members:
+   "requests_per_second" (a number greater than zero), "max_concurrent"
+   (an integer no less than one), "burst" (an integer no less than
+   one), and "tier" (one of "fragile", "standard", or "robust", an
+   alternative to specifying "requests_per_second" directly).
+
+   An agent MUST NOT exceed an explicitly declared
+   "requests_per_second" -- the adaptive behavior of Section 3.2 MAY
+   reduce the effective rate below this ceiling but MUST NOT be used
+   to justify exceeding it.
+
+5.  Fallback Capacity Inference
+
+   In the absence of both a Section 4 resource and a "Crawl-delay"
+   directive applicable under [RFC9309], an agent MAY infer a starting
+   capacity tier from signals already available on the request it was
+   going to make regardless, without issuing dedicated probe traffic:
+   the presence of response header fields associated with a content
+   delivery network SHOULD be treated as evidence of a "robust"
+   origin; the absence of such evidence combined with a
+   time-to-first-byte exceeding approximately 800 milliseconds SHOULD
+   be treated as evidence of a "fragile" one.
+
+   A tier inferred under this section is a starting point that an
+   agent's adaptive rate control (Section 3.2) MAY subsequently
+   increase; it is advisory, unlike the binding ceiling of Section 4.2.
+
+6.  Security Considerations
+
+   The identity declared in Section 3 is unauthenticated; an origin
+   MUST NOT rely on it for access control, and SHOULD treat any rate
+   privilege extended to a named agent as revocable and abusable by
+   an impersonator.  Origins requiring a verified identity SHOULD
+   combine this specification with a cryptographic mechanism such as
+   Web Bot Auth (Section 9).
+
+   An agent parsing the resource of Section 4 is parsing content
+   supplied by a remote, potentially adversarial party, and SHOULD
+   apply ordinary defensive parsing practice: a bound on response
+   size, a parser that fails closed to "no policy" on any malformed
+   input rather than raising an exception into the agent's control
+   flow, and no execution of any content the resource might contain.
+
+7.  Privacy Considerations
+
+   The "contact" field of Section 3.1, if populated with a real
+   operator's personal email address rather than a role account, is
+   disclosed to every origin the agent contacts.  Implementations
+   SHOULD document this to their operators and MAY default to a role
+   or team address.
+
+   A future extension enabling shared capacity information across
+   agents (see Section 9) would introduce additional privacy
+   considerations -- specifically, the risk of an origin using such a
+   registry to fingerprint or correlate distinct agents -- and is
+   explicitly out of scope for this document pending further design
+   attention.
+
+8.  IANA Considerations
+
+   This document requests registration of "Considerate-Agent" in the
+   "Hypertext Transfer Protocol (HTTP) Field Name Registry"
+   maintained at <https://www.iana.org/assignments/http-fields>, and
+   registration of "considerate.json" in the "Well-Known URIs"
+   registry maintained under [RFC8615], pending working-group or
+   community review of this document.
+
+9.  Relationship to Other Work
+
+   This document is scoped narrowly and is intended to be adopted
+   alongside, not in place of, the following:
+
+   *  [RFC9309] and its "Crawl-delay" extension, for scope and a
+      static per-crawler delay; this document treats "Crawl-delay" as
+      one input to Section 5 and always honors "Disallow" first.
+
+   *  The IETF AI Preferences vocabulary (draft-ietf-aipref-vocab),
+      which expresses permission to use content for training or
+      search, a distinct question from the capacity question this
+      document addresses.
+
+   *  Web Bot Auth (draft-meunier-webbotauth-registry), which provides
+      cryptographically verified agent identity; this document is
+      intended as an adoptable floor beneath that heavier mechanism,
+      not a competitor to it.
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, May 2017.
+
+   [RFC8615]  Nottingham, M., "Well-Known Uniform Resource Identifiers
+              (URIs)", RFC 8615, May 2019.
+
+   [RFC8941]  Nottingham, M. and P-H. Kamp, "Structured Field Values
+              for HTTP", RFC 8941, February 2021.
+
+   [RFC9110]  Fielding, R., Ed., Nottingham, M., Ed., and J. Reschke,
+              Ed., "HTTP Semantics", STD 97, RFC 9110, June 2022.
+
+   [RFC9309]  Koster, M., Illyes, G., Zeller, H., and L. Sassman,
+              "Robots Exclusion Protocol", RFC 9309, September 2022.
+
+10.2.  Informative References
+
+   [draft-ietf-aipref-vocab]
+              IETF AI Preferences Working Group, "Vocabulary for
+              expressing AI training and other preferences", Work in
+              Progress.
+
+   [draft-meunier-webbotauth-registry]
+              Meunier, T., et al., "Registry and Signature Agent card
+              for Web bot auth", Work in Progress.
+
+Appendix A.  Change Log
+
+   This appendix to be removed by the RFC Editor before publication,
+   if applicable.
+
+   draft-pandey-considerate-00 (2026-08-26): Initial submission,
+   derived from the "considerate" reference implementation's SPEC.md
+   v0.2 <https://github.com/AdityaPandey0901/considerate/blob/main/SPEC.md>.
+
+Author's Address
+
+   Aditya Pandey
+   Email: (see GitHub profile)
+   URI:   https://github.com/AdityaPandey0901/considerate
