@@ -93,8 +93,10 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     print(f"  policy source:      {report['policy_source']}")
     if report["policy_contact"]:
         print(f"  site contact:       {report['policy_contact']}")
-    print(f"  current rate:       {report['current_rate_req_per_s']} req/s"
-          f"{' (hard ceiling — set by the site)' if report['hard_ceiling'] else ' (soft, inferred — may climb)'}")
+    print(
+        f"  current rate:       {report['current_rate_req_per_s']} req/s"
+        f"{' (hard ceiling — set by the site)' if report['hard_ceiling'] else ' (soft, inferred — may climb)'}"
+    )
     print(f"  ceiling:            {report['ceiling_req_per_s']} req/s")
     if report["declared_rate_for_this_agent"] is not None:
         print(f"  rate declared for '{client.identity.name}': {report['declared_rate_for_this_agent']} req/s")
@@ -111,7 +113,7 @@ def cmd_inspect(args: argparse.Namespace) -> int:
 
 
 def _parse_duration(text: str) -> float:
-    """"30s" / "2m" / "1h" / a bare number of seconds -> float seconds."""
+    """ "30s" / "2m" / "1h" / a bare number of seconds -> float seconds."""
     text = text.strip().lower()
     units = {"s": 1.0, "m": 60.0, "h": 3600.0, "ms": 0.001}
     for suffix, factor in sorted(units.items(), key=lambda kv: -len(kv[0])):
@@ -164,7 +166,9 @@ def cmd_probe(args: argparse.Namespace) -> int:
         state = client._domains.get(host)
         rate = state.controller.rate if state else None
         elapsed = time.monotonic() - start
-        print(f"{elapsed:>5.1f}s  {i:>3}  {result:<28}  {rate if rate is None else f'{rate:.3f}':<13}  {', '.join(events_log) or '-'}")
+        print(
+            f"{elapsed:>5.1f}s  {i:>3}  {result:<28}  {rate if rate is None else f'{rate:.3f}':<13}  {', '.join(events_log) or '-'}"
+        )
 
         if out_fh:
             out_fh.write(
@@ -254,7 +258,11 @@ def cmd_policy_validate(args: argparse.Namespace) -> int:
 
     print(f"{target}: valid")
     print(f"  version: {policy.version}")
-    print(f"  default rate: {policy.default.requests_per_second} req/s" if policy.default.requests_per_second is not None else "  default rate: (not set)")
+    print(
+        f"  default rate: {policy.default.requests_per_second} req/s"
+        if policy.default.requests_per_second is not None
+        else "  default rate: (not set)"
+    )
     if policy.agents:
         print(f"  named agent overrides: {', '.join(policy.agents)}")
     if policy.verified_agents:
@@ -289,7 +297,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     crawl_delay = max(1, round(1.0 / rate)) if rate > 0 else 60
     print(f"Wrote {out_path}")
-    print(f"\nPublish it at https://your-domain.example/.well-known/considerate.json")
+    print("\nPublish it at https://your-domain.example/.well-known/considerate.json")
     print("\nAs a fallback for agents that don't check that file yet, add this to robots.txt:\n")
     print(f"User-agent: *\nCrawl-delay: {crawl_delay}")
     return 0
@@ -323,7 +331,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_probe = sub.add_parser("probe", help="Several requests: watch AIMD/circuit-breaker react live")
     p_probe.add_argument("url")
     p_probe.add_argument("-n", "--requests", type=int, default=8, help="Number of requests to send (default: 8)")
-    p_probe.add_argument("-d", "--duration", default=None, help='Run for this long instead of a fixed count, e.g. "30s", "2m" (overrides -n)')
+    p_probe.add_argument(
+        "-d",
+        "--duration",
+        default=None,
+        help='Run for this long instead of a fixed count, e.g. "30s", "2m" (overrides -n)',
+    )
     p_probe.add_argument("-o", "--out", default=None, help="Append each request as an NDJSON line to this file")
     _add_common_args(p_probe)
 
@@ -333,7 +346,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate.add_argument("path_or_url")
 
     p_init = sub.add_parser("init", help="Scaffold a considerate.json for your own site")
-    p_init.add_argument("-o", "--output", default="considerate.json", help="Where to write the file (default: ./considerate.json)")
+    p_init.add_argument(
+        "-o", "--output", default="considerate.json", help="Where to write the file (default: ./considerate.json)"
+    )
     p_init.add_argument("-y", "--yes", action="store_true", help="Accept defaults without prompting")
 
     return parser

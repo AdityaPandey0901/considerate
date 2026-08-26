@@ -1,0 +1,63 @@
+site_name: considerate
+site_description: A respectful, adaptive rate-limiting layer for agents that fetch the web.
+repo_url: https://github.com/AdityaPandey0901/considerate
+repo_name: AdityaPandey0901/considerate
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      accent: teal
+
+nav:
+  - Home: index.md
+  - Protocol spec: spec.md
+  - API reference:
+      - Client (httpx): api/client.md
+      - requests adapter: api/requests_adapter.md
+      - Browser (Playwright): api/browser.md
+      - MCP server: api/mcp_server.md
+      - Identity: api/identity.md
+      - Policy: api/policy.md
+      - Controller (AIMD): api/controller.md
+      - Circuit breaker: api/breaker.md
+      - Config: api/config.md
+      - Events: api/events.md
+      - Metrics: api/metrics.md
+      - Exceptions: api/exceptions.md
+
+validation:
+  links:
+    # README.md/SPEC.md are snippet-included as-is (docs/index.md,
+    # docs/spec.md) so they stay a single source of truth with the GitHub
+    # repo view — their relative links (./LICENSE, ./SPEC.md,
+    # ./examples/...) are correct for GitHub's file browser but don't
+    # resolve inside the docs/ site tree. That's an intentional dual-use
+    # tradeoff, not a broken link — `mkdocs build --strict` would
+    # otherwise abort on every one of them.
+    # (--strict promotes any "warn" to a hard failure, so these specific,
+    # already-triaged categories are set to "ignore" rather than "warn" —
+    # a new *kind* of link problem would still surface under other
+    # validation keys, which stay at their strict defaults.)
+    not_found: ignore
+    unrecognized_links: ignore
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            docstring_style: google
+            show_root_heading: true
+            merge_init_into_class: true
+
+markdown_extensions:
+  - fenced_code
+  - tables
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.superfences

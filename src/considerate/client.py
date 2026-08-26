@@ -63,7 +63,7 @@ class _SharedLogic:
     identity: AgentIdentity
     on_event: EventCallback | None
     verified_identity: str | None
-    _domains: "OrderedDict[str, DomainState]"
+    _domains: OrderedDict[str, DomainState]
     _persistent_cache: PersistentPolicyCache | None
 
     def _init_persistent_cache(self) -> None:
@@ -165,13 +165,13 @@ class ConsiderateClient(_SharedLogic):
         # caller already checked, here's what it resolved to."
         self.verified_identity = verified_identity
         self._httpx = httpx.Client(**httpx_kwargs)
-        self._domains: "OrderedDict[str, DomainState]" = OrderedDict()
+        self._domains: OrderedDict[str, DomainState] = OrderedDict()
         self._domains_lock = threading.Lock()
         self._semaphores: dict[str, threading.Semaphore] = {}
         self._semaphore_limits: dict[str, int] = {}
         self._init_persistent_cache()
 
-    def __enter__(self) -> "ConsiderateClient":
+    def __enter__(self) -> ConsiderateClient:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -357,13 +357,13 @@ class AsyncConsiderateClient(_SharedLogic):
         self.on_event = on_event
         self.verified_identity = verified_identity
         self._httpx = httpx.AsyncClient(**httpx_kwargs)
-        self._domains: "OrderedDict[str, DomainState]" = OrderedDict()
+        self._domains: OrderedDict[str, DomainState] = OrderedDict()
         self._domains_lock = asyncio.Lock()
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._semaphore_limits: dict[str, int] = {}
         self._init_persistent_cache()  # sqlite I/O is fast enough locally to do synchronously here
 
-    async def __aenter__(self) -> "AsyncConsiderateClient":
+    async def __aenter__(self) -> AsyncConsiderateClient:
         return self
 
     async def __aexit__(self, *exc: Any) -> None:

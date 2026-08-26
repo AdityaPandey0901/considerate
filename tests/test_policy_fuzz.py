@@ -14,9 +14,7 @@ from considerate.policy import parse_well_known
 
 _json_value = st.recursive(
     st.none() | st.booleans() | st.floats(allow_nan=False, allow_infinity=False) | st.text(max_size=50),
-    lambda children: (
-        st.lists(children, max_size=6) | st.dictionaries(st.text(max_size=20), children, max_size=6)
-    ),
+    lambda children: st.lists(children, max_size=6) | st.dictionaries(st.text(max_size=20), children, max_size=6),
     max_leaves=40,
 )
 

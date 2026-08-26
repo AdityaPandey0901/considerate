@@ -46,7 +46,11 @@ def policy_to_wire_dict(policy: SitePolicy) -> dict:
         "verified_agents": {name: _rule_to_dict(r) for name, r in policy.verified_agents.items()},
         "disallow_paths": policy.disallow_paths,
         "crawl_windows": [
-            {k: v for k, v in {"days": list(w.days), "hours": w.hours, "multiplier": w.multiplier, "note": w.note}.items() if v is not None}
+            {
+                k: v
+                for k, v in {"days": list(w.days), "hours": w.hours, "multiplier": w.multiplier, "note": w.note}.items()
+                if v is not None
+            }
             for w in policy.crawl_windows
         ],
     }
@@ -72,9 +76,7 @@ class PersistentPolicyCache:
 
     def get(self, host: str) -> tuple[SitePolicy, float] | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT fetched_at, source, data FROM policies WHERE host = ?", (host,)
-            ).fetchone()
+            row = self._conn.execute("SELECT fetched_at, source, data FROM policies WHERE host = ?", (host,)).fetchone()
         if row is None:
             return None
         fetched_at, source, data = row

@@ -1,0 +1,3 @@
+# Client (httpx)
+
+::: considerate.client

@@ -1,5 +1,10 @@
 # considerate
 
+[![CI](https://github.com/AdityaPandey0901/considerate/actions/workflows/ci.yml/badge.svg)](https://github.com/AdityaPandey0901/considerate/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/considerate)](https://pypi.org/project/considerate/)
+[![Python versions](https://img.shields.io/pypi/pyversions/considerate)](https://pypi.org/project/considerate/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 **A drop-in rate-limiting layer for agents that fetch the web — built to protect the site being visited, not just the agent visiting it.**
 
 ```python
@@ -332,6 +337,12 @@ You don't need to run any code to get value from this. Publish a
 `robots.txt` has a `Crawl-delay`. Any agent using `considerate` (and any
 future library implementing the same open spec) will respect it
 immediately, with no code deployed on your end.
+
+## Docs
+
+This README + [SPEC.md](./SPEC.md) plus a generated API reference build
+into a docs site via `mkdocs` — see [CONTRIBUTING.md](./CONTRIBUTING.md#docs-site)
+to build it locally (`mkdocs serve`); not deployed anywhere yet.
 
 ## Status
 

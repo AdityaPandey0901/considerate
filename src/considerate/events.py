@@ -8,9 +8,10 @@ of the slowdown happening silently inside the library.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from time import time
-from typing import Any, Callable
+from typing import Any
 
 EventCallback = Callable[["Event"], None]
 

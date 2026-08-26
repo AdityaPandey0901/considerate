@@ -33,9 +33,7 @@ def test_events_total_counter_increments():
     )
     client.get("https://metrics1.test/page")
 
-    value = registry.get_sample_value(
-        "considerate_events_total", {"domain": "metrics1.test", "kind": "rate_increased"}
-    )
+    value = registry.get_sample_value("considerate_events_total", {"domain": "metrics1.test", "kind": "rate_increased"})
     assert value == 1.0
 
 

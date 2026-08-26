@@ -38,7 +38,7 @@ def classify_transport_failure(exc: BaseException) -> str:
             return _DNS_ERROR
         if isinstance(cause, ssl.SSLError) or "ssl" in text or "certificate" in text:
             return _TLS_ERROR
-        if isinstance(exc, (httpx.ProtocolError, httpx.LocalProtocolError, httpx.RemoteProtocolError)):
+        if isinstance(exc, httpx.ProtocolError | httpx.LocalProtocolError | httpx.RemoteProtocolError):
             return _PROTOCOL_ERROR
         return _CONNECTION_ERROR
 

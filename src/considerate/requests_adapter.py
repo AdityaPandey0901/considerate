@@ -91,7 +91,7 @@ class ConsiderateAdapter(HTTPAdapter, _SharedLogic):  # type: ignore[misc]
         self.considerate_config = config or ConsiderateConfig()
         self.on_event = on_event
         self.verified_identity = verified_identity
-        self._domains: "OrderedDict[str, DomainState]" = OrderedDict()
+        self._domains: OrderedDict[str, DomainState] = OrderedDict()
         self._domains_lock = threading.Lock()
         self._semaphores: dict[str, threading.Semaphore] = {}
         self._semaphore_limits: dict[str, int] = {}
@@ -209,13 +209,13 @@ class ConsiderateAdapter(HTTPAdapter, _SharedLogic):  # type: ignore[misc]
 
     def send(
         self,
-        request: "requests.PreparedRequest",
+        request: requests.PreparedRequest,
         stream: bool = False,
         timeout: Any = None,
-        verify: "bool | str" = True,
+        verify: bool | str = True,
         cert: Any = None,
-        proxies: "dict[str, str] | None" = None,
-    ) -> "requests.Response":
+        proxies: dict[str, str] | None = None,
+    ) -> requests.Response:
         # PreparedRequest.url is typed as `str | bytes | None` (it can hold
         # bytes internally); in every path considerate's own code takes,
         # it's already a plain str by the time send() runs.
@@ -253,7 +253,9 @@ class ConsiderateAdapter(HTTPAdapter, _SharedLogic):  # type: ignore[misc]
 
             start = time.monotonic()
             try:
-                response = super().send(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
+                response = super().send(
+                    request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies
+                )
             except requests.exceptions.RequestException as exc:
                 state.controller.report_failure()
                 state.breaker.report_failure(_classify_requests_failure(exc))

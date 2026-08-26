@@ -17,7 +17,7 @@ playwright_async_api = pytest.importorskip("playwright.async_api")
 
 from considerate import AgentIdentity, CircuitOpenError, ConsiderateConfig, DisallowedError  # noqa: E402
 from considerate.breaker import BreakerConfig  # noqa: E402
-from considerate.browser import AsyncConsiderateBrowserPage, ConsiderateBrowserPage  # noqa: E402
+from considerate.browser import ConsiderateBrowserPage  # noqa: E402
 
 
 class _Handler(BaseHTTPRequestHandler):

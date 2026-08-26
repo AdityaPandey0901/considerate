@@ -35,8 +35,7 @@ class CircuitOpenError(ConsiderateError):
             "retry_after": retry_after,
         }
         super().__init__(
-            f"considerate: circuit open for {domain!r} ({reason}); "
-            f"retry after {retry_after:.0f}s",
+            f"considerate: circuit open for {domain!r} ({reason}); retry after {retry_after:.0f}s",
             payload,
         )
         self.domain = domain
@@ -56,8 +55,7 @@ class DisallowedError(ConsiderateError):
     def __init__(self, url: str) -> None:
         payload = {"status": "disallowed", "url": url}
         super().__init__(
-            f"considerate: robots.txt disallows fetching {url!r} "
-            "(set respect_robots_txt=False to override)",
+            f"considerate: robots.txt disallows fetching {url!r} (set respect_robots_txt=False to override)",
             payload,
         )
         self.url = url

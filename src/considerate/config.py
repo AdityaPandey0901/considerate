@@ -41,7 +41,7 @@ class ConsiderateConfig:
         return self.overrides.get(domain, self.default_tier)
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "ConsiderateConfig":
+    def from_yaml(cls, path: str | Path) -> ConsiderateConfig:
         """Load config from a `considerate.yaml` file (see the shipped
         `considerate.yaml.example` for the schema). Requires the optional
         `pyyaml` dependency (`pip install considerate[yaml]`).
@@ -49,9 +49,7 @@ class ConsiderateConfig:
         try:
             import yaml
         except ImportError as exc:  # pragma: no cover - exercised via error message
-            raise ImportError(
-                "considerate.yaml loading requires pyyaml: pip install considerate[yaml]"
-            ) from exc
+            raise ImportError("considerate.yaml loading requires pyyaml: pip install considerate[yaml]") from exc
 
         raw = yaml.safe_load(Path(path).read_text()) or {}
         cfg = cls()

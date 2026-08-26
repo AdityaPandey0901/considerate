@@ -9,7 +9,7 @@ import time
 import httpx
 import pytest
 
-from considerate import AgentIdentity, AsyncConsiderateClient, ConsiderateClient, ConsiderateConfig
+from considerate import AsyncConsiderateClient, ConsiderateClient, ConsiderateConfig
 from considerate.config import TIER_DEFAULTS
 
 
@@ -52,7 +52,9 @@ async def test_async_client_respects_max_concurrent_without_blocking_loop():
             await asyncio.sleep(0.01)
             ticks += 1
 
-    config = ConsiderateConfig(max_concurrent_per_domain=2, tier_rates={"standard": 1000.0}, tier_ceilings={"standard": 1000.0})
+    config = ConsiderateConfig(
+        max_concurrent_per_domain=2, tier_rates={"standard": 1000.0}, tier_ceilings={"standard": 1000.0}
+    )
     async with AsyncConsiderateClient(config=config, transport=httpx.MockTransport(handler)) as client:
         hb = asyncio.create_task(heartbeat())
         await asyncio.gather(*[client.get("https://concurrency.test/page") for _ in range(6)])
@@ -150,7 +152,9 @@ def test_domain_tracking_evicts_coldest_past_the_cap():
         meta = _meta_404(request)
         return meta if meta is not None else httpx.Response(200)
 
-    config = ConsiderateConfig(max_tracked_domains=3, tier_rates={"standard": 1000.0}, tier_ceilings={"standard": 1000.0})
+    config = ConsiderateConfig(
+        max_tracked_domains=3, tier_rates={"standard": 1000.0}, tier_ceilings={"standard": 1000.0}
+    )
     client = ConsiderateClient(config=config, transport=httpx.MockTransport(handler))
 
     for i in range(5):

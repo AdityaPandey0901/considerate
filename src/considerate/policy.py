@@ -182,7 +182,11 @@ def parse_well_known(raw: bytes | str) -> SitePolicy:
     for w in data.get("crawl_windows") or []:
         if not isinstance(w, dict):
             continue
-        days = tuple(d for d in w.get("days", []) if isinstance(d, str) and d in _DAY_NAMES) if isinstance(w.get("days"), list) else ()
+        days = (
+            tuple(d for d in w.get("days", []) if isinstance(d, str) and d in _DAY_NAMES)
+            if isinstance(w.get("days"), list)
+            else ()
+        )
         hours = w.get("hours") if isinstance(w.get("hours"), str) else None
         multiplier = _as_float(w.get("multiplier"))
         note = w.get("note") if isinstance(w.get("note"), str) else None
@@ -202,7 +206,9 @@ def parse_well_known(raw: bytes | str) -> SitePolicy:
     )
 
 
-def parse_robots_crawl_delay(robots_txt: str, user_agent: str = "*", url_for_check: str | None = None) -> tuple[SitePolicy | None, robotparser.RobotFileParser]:
+def parse_robots_crawl_delay(
+    robots_txt: str, user_agent: str = "*", url_for_check: str | None = None
+) -> tuple[SitePolicy | None, robotparser.RobotFileParser]:
     """Parse robots.txt for a `Crawl-delay` directive and return a SitePolicy.
 
     Returns (None, parser) if no crawl-delay applies (parser is still useful

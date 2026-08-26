@@ -2,6 +2,7 @@
 hit with a real ConsiderateClient over a real socket — no mocks — to show
 the AIMD controller and circuit breaker actually reacting.
 """
+
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -57,6 +58,7 @@ client = ConsiderateClient(
     on_event=lambda e: events.append(e),
 )
 
+
 def tool_result_for(url: str) -> str:
     """The exact string shape a `@tool`-wrapped fetch (see
     examples/langchain_tool_example.py) returns as its tool_result — plain
@@ -81,7 +83,7 @@ for i in range(1, 19):
     events.clear()
     try:
         resp = client.get("http://127.0.0.1:8765/page")
-        result = f"200 ok"
+        result = "200 ok"
     except CircuitOpenError as e:
         result = f"CIRCUIT OPEN ({e.reason}, retry {e.retry_after:.0f}s)"
         # Capture what an agent's tool call would have seen at this exact

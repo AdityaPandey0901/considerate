@@ -18,15 +18,13 @@ Requires the optional `prometheus-client` dependency:
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 try:
-    from prometheus_client import CollectorRegistry, Counter, Gauge
     from prometheus_client import REGISTRY as _DEFAULT_REGISTRY
+    from prometheus_client import CollectorRegistry, Counter, Gauge
 except ImportError as exc:  # pragma: no cover - exercised via the error message
-    raise ImportError(
-        "considerate.metrics requires prometheus-client: pip install considerate[observability]"
-    ) from exc
+    raise ImportError("considerate.metrics requires prometheus-client: pip install considerate[observability]") from exc
 
 from .events import Event
 
@@ -34,7 +32,7 @@ _RATE_INCREASE_EVENTS = frozenset({"rate_increased"})
 _RATE_DECREASE_EVENTS = frozenset({"rate_decreased"})
 
 
-def prometheus_event_handler(registry: "CollectorRegistry | None" = None) -> Callable[[Event], None]:
+def prometheus_event_handler(registry: CollectorRegistry | None = None) -> Callable[[Event], None]:
     """Build an `on_event` callback that records considerate `Event`s as
     Prometheus metrics on `registry` (the global default registry if
     omitted). Call this once per process — like any `prometheus_client`

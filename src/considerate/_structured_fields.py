@@ -83,7 +83,7 @@ class _Parser:
             raise ValueError(f"invalid key start at position {self.i} in {self.s!r}")
         while self.peek() and (self.peek().isalnum() or self.peek() in "_-.*"):
             self.advance()
-        return self.s[start:self.i]
+        return self.s[start : self.i]
 
     def _skip_parameters(self) -> None:
         # Parameters (`;name=value`) are valid SF syntax we choose not to
@@ -136,7 +136,7 @@ class _Parser:
         start = self.i
         while self.peek() and (self.peek().isalnum() or self.peek() in "_-.:/*!#$%&'^`|~"):
             self.advance()
-        return self.s[start:self.i]
+        return self.s[start : self.i]
 
     def _parse_boolean(self) -> bool:
         self.expect("?")
@@ -156,7 +156,7 @@ class _Parser:
             if self.eof():
                 raise ValueError("unterminated byte sequence")
             self.advance()
-        encoded = self.s[start:self.i]
+        encoded = self.s[start : self.i]
         self.expect(":")
         return base64.b64decode(encoded)
 
@@ -176,5 +176,5 @@ class _Parser:
                 raise ValueError("invalid decimal: no digits after '.'")
             while self.peek().isdigit():
                 self.advance()
-        text = self.s[start:self.i]
+        text = self.s[start : self.i]
         return float(text) if is_decimal else int(text)

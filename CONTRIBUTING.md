@@ -30,6 +30,51 @@ meant to be adoptable by other languages/frameworks. If a change affects the
 wire format, update `SPEC.md` first, bump its version, and treat the Python
 implementation as the reference client, not the source of truth.
 
+## Docs site
+
+`mkdocs.yml` builds an API reference (via mkdocstrings) plus the README
+and SPEC.md, snippet-included so they stay a single source of truth
+rather than a second copy that drifts.
+
+```bash
+pip install -e ".[dev]"
+mkdocs serve          # live preview at http://127.0.0.1:8000
+mkdocs build --strict # what CI runs — catches broken internal doc links
+```
+
+Not deployed anywhere yet — `mkdocs gh-deploy` publishes to a `gh-pages`
+branch and GitHub Pages, both of which are a one-time, explicit decision
+for a maintainer to make (it makes documentation content public at a
+predictable URL), not something to run as a side effect of other changes.
+
+## Releasing
+
+Publishing is via [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
+(OIDC) — no API token is stored anywhere. One-time setup, done once on
+PyPI's side (not by CI, not by this repo):
+
+1. At https://pypi.org/manage/project/considerate/settings/publishing/
+   (or, before the project exists on PyPI yet, the equivalent "pending
+   publisher" flow at https://pypi.org/manage/account/publishing/),
+   register a trusted publisher with: owner `AdityaPandey0901`, repo
+   `considerate`, workflow filename `release.yml`, environment `pypi`.
+2. Create a `pypi` environment under this repo's Settings → Environments
+   (optionally with required reviewers, for a manual approval gate on
+   every release).
+
+After that, releasing is:
+
+```bash
+# bump the version in pyproject.toml first, commit it, then:
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` builds the sdist/wheel, checks the tag
+matches `pyproject.toml`'s version, and publishes on a match. Also update
+`CHANGELOG.md`'s `[Unreleased]` section into a new dated version heading
+as part of the version-bump commit, before tagging.
+
 ## Tests
 
 No real network calls in the default test run — `httpx.MockTransport`

@@ -41,6 +41,19 @@ with hatchling. Own `.venv/` in this directory — do not use the parent
   unsupported interpreter. Lesson: `gh run list` after every push that
   touches CI-relevant files (deps, Python version matrix, new test files)
   — passing tests locally is not the same claim as passing CI.
+- `mkdocs build --strict` aborts on ANY `warn`-level validation message,
+  including two we intentionally accept: README.md/SPEC.md are
+  snippet-included (`--8<--`) into `docs/` so they stay a single source of
+  truth, but their GitHub-relative links (`./SPEC.md`, `./examples/...`)
+  don't resolve inside the docs/ tree. Set `validation.links.not_found`
+  and `.unrecognized_links` to `ignore` (not `warn` — strict promotes
+  `warn` to a failure too) for those two specific categories only, so a
+  genuinely new broken link still fails the build.
+- `ruff`'s pinned pre-commit hook version (`.pre-commit-config.yaml`) can
+  disagree with whatever `ruff` version is `pip install`ed locally on
+  which rules are even enabled (e.g. `UP038` on isinstance tuples) — run
+  `pre-commit run --all-files` at least once after adding it, don't assume
+  a clean `ruff check .` locally means the hook is clean too.
 - `requests.adapters.HTTPAdapter.__init__` unconditionally sets
   `self.config = {}` for its own urllib3 pool/proxy bookkeeping — a real
   attribute name collision if a subclass (`ConsiderateAdapter`) also wants

@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from considerate.cli import build_parser, cmd_inspect, cmd_init, cmd_policy_validate, cmd_probe
+from considerate.cli import build_parser, cmd_init, cmd_inspect, cmd_policy_validate, cmd_probe
 
 
 def test_common_args_work_after_subcommand():

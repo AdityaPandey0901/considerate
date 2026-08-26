@@ -98,8 +98,7 @@ class CircuitBreaker:
             error_rate = self._recent.count(False) / len(self._recent) if self._recent else 0.0
             tripped_by_streak = self._consecutive_failures >= self.config.consecutive_failures
             tripped_by_rate = (
-                len(self._recent) >= self.config.error_rate_window
-                and error_rate >= self.config.error_rate_threshold
+                len(self._recent) >= self.config.error_rate_window and error_rate >= self.config.error_rate_threshold
             )
             if tripped_by_streak or tripped_by_rate:
                 self._open_locked(reason)

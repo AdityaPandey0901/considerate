@@ -112,14 +112,14 @@ class ConsiderateBrowserPage(_BrowserSharedLogic):
         self.config = config or ConsiderateConfig()
         self.on_event = on_event
         self.verified_identity = verified_identity
-        self._domains: "OrderedDict[str, DomainState]" = OrderedDict()
+        self._domains: OrderedDict[str, DomainState] = OrderedDict()
         self._domains_lock = threading.Lock()
         self._meta_client = httpx.Client()
 
     def close(self) -> None:
         self._meta_client.close()
 
-    def __enter__(self) -> "ConsiderateBrowserPage":
+    def __enter__(self) -> ConsiderateBrowserPage:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -183,7 +183,7 @@ class ConsiderateBrowserPage(_BrowserSharedLogic):
         start = time.monotonic()
         try:
             response = self.page.goto(url, **kwargs)
-        except Exception as exc:  # Playwright's own Error type — see module docstring on scope
+        except Exception:  # Playwright's own Error type — see module docstring on scope
             state.controller.report_failure()
             state.breaker.report_failure("navigation_error")
             raise
@@ -210,14 +210,14 @@ class AsyncConsiderateBrowserPage(_BrowserSharedLogic):
         self.config = config or ConsiderateConfig()
         self.on_event = on_event
         self.verified_identity = verified_identity
-        self._domains: "OrderedDict[str, DomainState]" = OrderedDict()
+        self._domains: OrderedDict[str, DomainState] = OrderedDict()
         self._domains_lock = asyncio.Lock()
         self._meta_client = httpx.AsyncClient()
 
     async def aclose(self) -> None:
         await self._meta_client.aclose()
 
-    async def __aenter__(self) -> "AsyncConsiderateBrowserPage":
+    async def __aenter__(self) -> AsyncConsiderateBrowserPage:
         return self
 
     async def __aexit__(self, *exc: Any) -> None:

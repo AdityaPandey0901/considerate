@@ -36,8 +36,8 @@ def test_fetch_tool_returns_page_content():
 
 
 def test_fetch_tool_reports_circuit_open_in_plain_language(monkeypatch):
-    from considerate.exceptions import CircuitOpenError
     from considerate import mcp_server
+    from considerate.exceptions import CircuitOpenError
 
     def raise_circuit_open(url, **kwargs):
         raise CircuitOpenError("mcptest.test", "http_503", 30.0)

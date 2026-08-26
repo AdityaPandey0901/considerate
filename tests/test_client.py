@@ -160,9 +160,7 @@ def test_context_manager_closes_underlying_httpx_client():
 @pytest.mark.asyncio
 async def test_async_client_basic_roundtrip():
     identity = AgentIdentity(name="AsyncBot")
-    async with AsyncConsiderateClient(
-        identity=identity, transport=httpx.MockTransport(make_handler())
-    ) as client:
+    async with AsyncConsiderateClient(identity=identity, transport=httpx.MockTransport(make_handler())) as client:
         response = await client.get(f"{BASE}/page")
         assert response.status_code == 200
         assert HOST in client._domains
@@ -171,8 +169,6 @@ async def test_async_client_basic_roundtrip():
 @pytest.mark.asyncio
 async def test_async_client_respects_well_known_policy():
     well_known = json.dumps({"default": {"requests_per_second": 0.3}})
-    async with AsyncConsiderateClient(
-        transport=httpx.MockTransport(make_handler(well_known=well_known))
-    ) as client:
+    async with AsyncConsiderateClient(transport=httpx.MockTransport(make_handler(well_known=well_known))) as client:
         await client.get(f"{BASE}/page")
         assert client._domains[HOST].controller.rate == 0.3
