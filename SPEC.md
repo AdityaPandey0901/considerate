@@ -82,7 +82,7 @@ faith. A compliant agent **MUST**:
 
 A site publishes, at `/.well-known/considerate.json`:
 
-A [JSON Schema](./schema/considerate.schema.json) is published alongside
+A [JSON Schema](./src/considerate/schema/considerate.schema.json) is published alongside
 this spec — point your editor or CI at it, or run
 `considerate policy validate path/to/considerate.json`.
 

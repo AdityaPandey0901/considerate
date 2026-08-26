@@ -137,6 +137,20 @@ considerate probe https://example.com/some/page --requests 8
 
 # Machine-readable
 considerate inspect https://example.com/ --json
+
+# Time-boxed instead of a fixed count, logging each request as NDJSON
+considerate probe https://example.com/ --duration 30s --out results.jsonl
+```
+
+For **site operators**, two more commands (`pip install considerate[validate]` for the first):
+
+```bash
+# Check a considerate.json against the schema before you publish it
+considerate policy validate ./considerate.json
+considerate policy validate https://example.com/.well-known/considerate.json
+
+# Scaffold one interactively (or -y for defaults, non-interactive)
+considerate init
 ```
 
 `probe` is safe to point at a real site: it's throttled by the exact same

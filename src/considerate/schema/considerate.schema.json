@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/AdityaPandey0901/considerate/main/schema/considerate.schema.json",
+  "$id": "https://raw.githubusercontent.com/AdityaPandey0901/considerate/main/src/considerate/schema/considerate.schema.json",
   "title": "Considerate site policy",
   "description": "Schema for /.well-known/considerate.json — see SPEC.md section 2. Referenced by `considerate policy validate`.",
   "type": "object",

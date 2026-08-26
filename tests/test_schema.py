@@ -11,7 +11,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "considerate.schema.json"
+SCHEMA_PATH = Path(__file__).parent.parent / "src" / "considerate" / "schema" / "considerate.schema.json"
 EXAMPLE_PATH = Path(__file__).parent.parent / "examples" / "site_setup" / "considerate.json"
 
 SCHEMA = json.loads(SCHEMA_PATH.read_text())
