@@ -23,9 +23,10 @@ from typing import Any
 
 import httpx
 
+from ._cache import PersistentPolicyCache, load_fresh
 from ._domain import DomainState
 from ._redirects import is_redirect, next_hop
-from ._util import parse_retry_after
+from ._util import classify_transport_failure, parse_retry_after
 from .config import ConsiderateConfig
 from .events import EventCallback, emit
 from .exceptions import CircuitOpenError, DisallowedError
@@ -47,6 +48,14 @@ class _SharedLogic:
     outcome means for the controller/breaker, and LRU bookkeeping. Neither
     method here ever awaits or blocks — that's entirely the callers' job.
     """
+
+    def _init_persistent_cache(self) -> None:
+        path = self.config.policy_cache_path
+        self._persistent_cache = PersistentPolicyCache(path) if path else None
+
+    def _close_persistent_cache(self) -> None:
+        if self._persistent_cache is not None:
+            self._persistent_cache.close()
 
     def _new_domain_state(self, host: str) -> DomainState:
         return DomainState(
@@ -80,6 +89,22 @@ class _SharedLogic:
         if status_code != 200:
             return None, None
         return parse_robots_crawl_delay(text, user_agent=self.identity.name)
+
+    def _domain_snapshot(self, state: DomainState) -> dict[str, Any]:
+        rule = state.policy.rule_for(self.identity.name, self.verified_identity) if state.policy else None
+        return {
+            "domain": state.host,
+            "policy_source": state.policy.source if state.policy else None,
+            "policy_contact": state.policy.contact if state.policy else None,
+            "hard_ceiling": state.hard_ceiling,
+            "calibrated": state.calibrated,
+            "current_rate_req_per_s": round(state.controller.rate, 4),
+            "base_ceiling_req_per_s": round(state.base_ceiling, 4),
+            "effective_ceiling_req_per_s": round(state.controller.config.max_rate, 4),
+            "max_concurrent": state.max_concurrent,
+            "declared_rate_for_identity": rule.requests_per_second if rule else None,
+            "circuit_state": state.breaker.state.value,
+        }
 
     def _record_outcome(self, state: DomainState, host: str, response: httpx.Response, latency: float) -> None:
         if not state.calibrated:
@@ -127,6 +152,7 @@ class ConsiderateClient(_SharedLogic):
         self._domains_lock = threading.Lock()
         self._semaphores: dict[str, threading.Semaphore] = {}
         self._semaphore_limits: dict[str, int] = {}
+        self._init_persistent_cache()
 
     def __enter__(self) -> "ConsiderateClient":
         return self
@@ -136,6 +162,17 @@ class ConsiderateClient(_SharedLogic):
 
     def close(self) -> None:
         self._httpx.close()
+        self._close_persistent_cache()
+
+    def snapshot(self) -> dict[str, dict[str, Any]]:
+        """A structured dump of every domain this client has touched so
+        far — current rate, ceiling, circuit breaker state, discovered
+        policy. For a dashboard, a log line, or a health check that wants
+        to watch a long-running agent from the outside, without threading
+        an `on_event` callback through every call site.
+        """
+        with self._domains_lock:
+            return {host: self._domain_snapshot(state) for host, state in self._domains.items()}
 
     def _get_domain(self, host: str) -> DomainState:
         with self._domains_lock:
@@ -175,7 +212,13 @@ class ConsiderateClient(_SharedLogic):
             return
 
         well_known_policy = None
-        if self.config.fetch_well_known:
+        used_disk_cache = False
+        if self._persistent_cache is not None:
+            disk_policy = load_fresh(self._persistent_cache, host, self.config.policy_cache_ttl)
+            if disk_policy is not None:
+                well_known_policy = disk_policy
+                used_disk_cache = True
+        if not used_disk_cache and self.config.fetch_well_known:
             fetched = self._fetch_meta(host, "/.well-known/considerate.json")
             if fetched:
                 well_known_policy = self._parse_well_known_response(host, *fetched)
@@ -192,7 +235,14 @@ class ConsiderateClient(_SharedLogic):
 
         if well_known_policy is not None:
             state.apply_policy(well_known_policy)
-            emit(self.on_event, "policy_discovered", host, source=well_known_policy.source)
+            if not used_disk_cache and self._persistent_cache is not None and well_known_policy.source == "well-known":
+                # Only explicit policy files are worth persisting across
+                # process restarts — a crawl-delay-derived one is cheap to
+                # re-derive, and robots.txt is fetched fresh every time
+                # anyway for its Disallow rules.
+                self._persistent_cache.set(host, well_known_policy, time.time())
+            label = well_known_policy.source + (" (disk cache)" if used_disk_cache else "")
+            emit(self.on_event, "policy_discovered", host, source=label)
         else:
             state.policy_fetched_at = time.monotonic()
 
@@ -247,7 +297,7 @@ class ConsiderateClient(_SharedLogic):
                 response = self._httpx.request(method, url, follow_redirects=False, **kwargs)
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 state.controller.report_failure()
-                state.breaker.report_failure(type(exc).__name__)
+                state.breaker.report_failure(classify_transport_failure(exc))
                 raise
 
             latency = time.monotonic() - start
@@ -294,6 +344,7 @@ class AsyncConsiderateClient(_SharedLogic):
         self._domains_lock = asyncio.Lock()
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._semaphore_limits: dict[str, int] = {}
+        self._init_persistent_cache()  # sqlite I/O is fast enough locally to do synchronously here
 
     async def __aenter__(self) -> "AsyncConsiderateClient":
         return self
@@ -303,6 +354,18 @@ class AsyncConsiderateClient(_SharedLogic):
 
     async def aclose(self) -> None:
         await self._httpx.aclose()
+        self._close_persistent_cache()
+
+    def snapshot(self) -> dict[str, dict[str, Any]]:
+        """Same as `ConsiderateClient.snapshot()`. Deliberately sync, not
+        async: it only reads already-computed state, no I/O — and requiring
+        an `await` for a monitoring read would be an odd asymmetry with
+        `on_event`, which is also plain, sync callbacks. Not lock-protected
+        (unlike the sync client) since that would need `await`; a snapshot
+        racing a concurrent `_get_domain` insert is acceptable for a
+        best-effort read, not a correctness-sensitive one.
+        """
+        return {host: self._domain_snapshot(state) for host, state in self._domains.items()}
 
     async def _get_domain(self, host: str) -> DomainState:
         async with self._domains_lock:
@@ -339,6 +402,12 @@ class AsyncConsiderateClient(_SharedLogic):
             return
 
         well_known_policy = None
+        used_disk_cache = False
+        if self._persistent_cache is not None:
+            disk_policy = load_fresh(self._persistent_cache, host, self.config.policy_cache_ttl)
+            if disk_policy is not None:
+                well_known_policy = disk_policy
+                used_disk_cache = True
         if self.config.fetch_well_known:
             fetched = await self._fetch_meta(host, "/.well-known/considerate.json")
             if fetched:
@@ -356,7 +425,14 @@ class AsyncConsiderateClient(_SharedLogic):
 
         if well_known_policy is not None:
             state.apply_policy(well_known_policy)
-            emit(self.on_event, "policy_discovered", host, source=well_known_policy.source)
+            if not used_disk_cache and self._persistent_cache is not None and well_known_policy.source == "well-known":
+                # Only explicit policy files are worth persisting across
+                # process restarts — a crawl-delay-derived one is cheap to
+                # re-derive, and robots.txt is fetched fresh every time
+                # anyway for its Disallow rules.
+                self._persistent_cache.set(host, well_known_policy, time.time())
+            label = well_known_policy.source + (" (disk cache)" if used_disk_cache else "")
+            emit(self.on_event, "policy_discovered", host, source=label)
         else:
             state.policy_fetched_at = time.monotonic()
 
@@ -411,7 +487,7 @@ class AsyncConsiderateClient(_SharedLogic):
                 response = await self._httpx.request(method, url, follow_redirects=False, **kwargs)
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 state.controller.report_failure()
-                state.breaker.report_failure(type(exc).__name__)
+                state.breaker.report_failure(classify_transport_failure(exc))
                 raise
 
             latency = time.monotonic() - start

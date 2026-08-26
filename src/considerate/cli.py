@@ -42,18 +42,20 @@ def _client(args: argparse.Namespace) -> ConsiderateClient:
 
 
 def _domain_report(client: ConsiderateClient, host: str) -> dict:
-    state = client._domains[host]
-    rule = state.policy.rule_for(client.identity.name) if state.policy else None
+    # Built on the same public `snapshot()` any caller can use for
+    # monitoring (C3) — the CLI is just one consumer of it, not a special
+    # path with its own state-reading logic.
+    s = client.snapshot()[host]
     return {
-        "domain": host,
-        "policy_source": state.policy.source if state.policy else "none (inferred only)",
-        "policy_contact": state.policy.contact if state.policy else None,
-        "hard_ceiling": state.hard_ceiling,
-        "current_rate_req_per_s": round(state.controller.rate, 4),
-        "ceiling_req_per_s": round(state.controller.config.max_rate, 4),
-        "max_concurrent": state.max_concurrent,
-        "declared_rate_for_this_agent": rule.requests_per_second if rule else None,
-        "circuit_state": state.breaker.state.value,
+        "domain": s["domain"],
+        "policy_source": s["policy_source"] or "none (inferred only)",
+        "policy_contact": s["policy_contact"],
+        "hard_ceiling": s["hard_ceiling"],
+        "current_rate_req_per_s": s["current_rate_req_per_s"],
+        "ceiling_req_per_s": s["effective_ceiling_req_per_s"],
+        "max_concurrent": s["max_concurrent"],
+        "declared_rate_for_this_agent": s["declared_rate_for_identity"],
+        "circuit_state": s["circuit_state"],
     }
 
 

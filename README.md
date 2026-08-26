@@ -117,8 +117,11 @@ standards](./SPEC.md#relationship-to-other-standards)).
 ## Install
 
 ```bash
-pip install considerate          # core: sync + async clients
-pip install considerate[yaml]    # + considerate.yaml config file support
+pip install considerate                # core: sync + async httpx clients
+pip install considerate[requests]      # + a requests.Session Transport Adapter
+pip install considerate[playwright]    # + throttled browser navigations (browser-use, Stagehand, raw Playwright)
+pip install considerate[observability] # + Prometheus metrics export
+pip install considerate[yaml]          # + considerate.yaml config file support
 ```
 
 ## Try it on a real URL from the command line
@@ -207,11 +210,37 @@ client = ConsiderateClient(identity=identity, on_event=on_event)
 
 ## Agent-framework integration
 
-See [`examples/langchain_tool_example.py`](./examples/langchain_tool_example.py)
-for wrapping `ConsiderateClient` as a LangChain tool, so an agent given an
-open-ended "scrape N pages" task self-limits without the developer having to
-think about it. The same wrapper pattern works for CrewAI, browser-use tool
-definitions, or any agent framework that accepts a plain Python callable.
+**Browser agents** (browser-use, Stagehand, raw Playwright) drive an actual
+browser and never make an HTTP call directly — `ConsiderateClient` sees
+none of that traffic. `considerate.browser` throttles real navigations
+instead:
+
+```python
+from playwright.sync_api import sync_playwright
+from considerate import AgentIdentity
+from considerate.browser import ConsiderateBrowserPage
+
+with sync_playwright() as p:
+    page = p.chromium.launch().new_page()
+    considerate_page = ConsiderateBrowserPage(page, identity=AgentIdentity(name="MyBrowserAgent"))
+    considerate_page.goto("https://example.com/page-1")   # same AIMD + circuit breaker as the HTTP clients
+```
+
+See [`examples/browser_agent_example.py`](./examples/browser_agent_example.py)
+for a full example (async version: `AsyncConsiderateBrowserPage`, same shape
+as `AsyncConsiderateClient`). Requires `pip install considerate[playwright]`.
+
+**Already using `requests`?** Mount a Transport Adapter instead of
+switching HTTP clients — see
+[`requests_adapter.py`](./src/considerate/requests_adapter.py)'s module
+docstring.
+
+**Tool-calling agents** (LangChain, CrewAI, any framework that accepts a
+plain Python callable): see
+[`examples/langchain_tool_example.py`](./examples/langchain_tool_example.py)
+for wrapping `ConsiderateClient` as a tool, so an agent given an open-ended
+"scrape N pages" task self-limits without the developer having to think
+about it.
 
 ## Configuration (optional)
 
@@ -235,6 +264,33 @@ from considerate import ConsiderateConfig, ConsiderateClient
 
 config = ConsiderateConfig.from_yaml("considerate.yaml")
 client = ConsiderateClient(config=config)
+```
+
+## Observability and persistence
+
+```python
+client.snapshot()
+# {"example.com": {"policy_source": "well-known", "current_rate_req_per_s": 1.2,
+#                   "circuit_state": "closed", "hard_ceiling": True, ...}, ...}
+```
+
+A structured dump of every domain a client has touched — for a health
+check, a log line, or a dashboard, without threading `on_event` through
+every call site. `pip install considerate[observability]` adds a
+Prometheus exporter built on the same event stream:
+
+```python
+from considerate.metrics import prometheus_event_handler
+client = ConsiderateClient(on_event=prometheus_event_handler())
+```
+
+For a short-lived process (a script, a Lambda) that doesn't want to
+rediscover every domain's policy on every cold start, point
+`policy_cache_path` at a file — subsequent runs skip the `/.well-known`
+fetch for anything still fresh:
+
+```python
+config = ConsiderateConfig(policy_cache_path="considerate_policy_cache.sqlite3")
 ```
 
 ## Non-goals

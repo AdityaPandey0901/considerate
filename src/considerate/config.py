@@ -27,6 +27,7 @@ class ConsiderateConfig:
     policy_cache_ttl: float = 24 * 3600.0
     max_concurrent_per_domain: int = 2
     max_tracked_domains: int = 2000  # LRU-evict the coldest domain past this
+    policy_cache_path: str | None = None  # sqlite file for cross-process policy caching (C2); None disables it
     meta_fetch_max_bytes: int = 1_000_000  # cap on /.well-known + robots.txt fetches
     max_redirects: int = 5  # redirect hops followed *through* considerate's own metering
 

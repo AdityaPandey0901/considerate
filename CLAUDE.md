@@ -29,6 +29,24 @@ with hatchling. Own `.venv/` in this directory — do not use the parent
   README/code as the reference implementation of it.
 
 ## Learnings & Notes
+- `requests.adapters.HTTPAdapter.__init__` unconditionally sets
+  `self.config = {}` for its own urllib3 pool/proxy bookkeeping — a real
+  attribute name collision if a subclass (`ConsiderateAdapter`) also wants
+  `self.config`. Store considerate's own config under a different name
+  (`considerate_config`) in anything that subclasses `HTTPAdapter`.
+- Playwright's async driver bootstrap conflicts with pytest-asyncio's
+  event-loop management (`Runner.run()`/`asyncio.run() cannot be called
+  from a running event loop`) as soon as another async test has already
+  run earlier in the same pytest session — reproduces intermittently,
+  depends on test order and pytest-asyncio version, not fixable by a
+  version pin alone. Run any `playwright.async_api` test in a genuinely
+  separate process (see `tests/_async_browser_subprocess.py` +
+  `subprocess.run`), not as an in-process `pytest.mark.asyncio` coroutine.
+- `_SharedLogic` (client.py) is reused by three integrations now (httpx
+  clients, requests adapter, browser wrapper) via mixin inheritance —
+  before adding a fourth, check whether the method you need touches
+  `self.config` (collision risk, see above) before assuming it's reusable
+  as-is.
 - SPEC.md's protocol version (now 0.2) and the package's own semver
   (`_version.py`, still 0.1.0) are tracked independently on purpose — the
   wire format and the Python package don't have to release in lockstep.
