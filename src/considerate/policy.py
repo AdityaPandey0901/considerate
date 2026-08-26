@@ -19,13 +19,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from urllib import robotparser
 
 from .exceptions import PolicyError
 
-SPEC_VERSION = "0.1"
+SPEC_VERSION = "0.2"
 
 _VALID_TIERS = {"fragile", "standard", "robust"}
+_DAY_NAMES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
 @dataclass
@@ -37,6 +39,38 @@ class RateRule:
     burst: int | None = None
     tier: str | None = None
     note: str | None = None
+
+
+@dataclass
+class CrawlWindow:
+    """A time-of-day/day-of-week rate multiplier (SPEC.md §2, v0.2).
+
+    All times are UTC — a policy file has no way to express a timezone
+    today, and UTC is at least unambiguous. `hours` is "HH:MM-HH:MM" and
+    may wrap past midnight (e.g. "22:00-06:00"). Empty `days` means every
+    day. When multiple windows are simultaneously active, the largest
+    multiplier applies.
+    """
+
+    days: tuple[str, ...] = ()
+    hours: str | None = None
+    multiplier: float = 1.0
+    note: str | None = None
+
+    def is_active(self, now: datetime) -> bool:
+        if self.days and _DAY_NAMES[now.weekday()] not in self.days:
+            return False
+        if not self.hours:
+            return True
+        try:
+            start_s, end_s = self.hours.split("-", 1)
+            start, end = _minutes_since_midnight(start_s), _minutes_since_midnight(end_s)
+        except ValueError:
+            return False
+        current = now.hour * 60 + now.minute
+        if start <= end:
+            return start <= current < end
+        return current >= start or current < end  # wraps past midnight
 
 
 @dataclass
@@ -52,21 +86,54 @@ class SitePolicy:
     contact: str | None = None
     default: RateRule = field(default_factory=RateRule)
     agents: dict[str, RateRule] = field(default_factory=dict)
+    # Web Bot Auth-verified identities (SPEC.md §6/v0.2, experimental): keyed
+    # by whatever stable identifier the verification step produced (e.g. a
+    # Signature Agent `client_id`), not the self-declared header name. When
+    # a caller supplies a verified_identity, a match here outranks even an
+    # exact `agents` name match, since it's backed by something stronger
+    # than a courtesy header. considerate does not perform the verification
+    # itself — see client.py's `verified_identity` parameter.
+    verified_agents: dict[str, RateRule] = field(default_factory=dict)
     disallow_paths: list[str] = field(default_factory=list)
+    crawl_windows: list[CrawlWindow] = field(default_factory=list)
     source: str = "well-known"  # "well-known" | "robots-crawl-delay" | "inferred"
 
-    def rule_for(self, agent_name: str | None) -> RateRule:
-        """Return the most specific rule that applies to `agent_name`.
+    def rule_for(self, agent_name: str | None, verified_identity: str | None = None) -> RateRule:
+        """Return the most specific rule that applies.
 
-        Exact name match wins, then a `"*"` wildcard entry in `agents`,
-        then the site-wide `default`.
+        Priority: a verified identity match, then an exact self-declared
+        name match, then a `"*"` wildcard entry in `agents`, then the
+        site-wide `default`.
         """
+        if verified_identity and verified_identity in self.verified_agents:
+            return self.verified_agents[verified_identity]
         if agent_name:
             if agent_name in self.agents:
                 return self.agents[agent_name]
             if "*" in self.agents:
                 return self.agents["*"]
         return self.default
+
+    def active_multiplier(self, now: datetime | None = None) -> float:
+        """The largest crawl_windows multiplier active right now (1.0 if
+        none apply or none are configured).
+        """
+        if not self.crawl_windows:
+            return 1.0
+        now = now or datetime.now(timezone.utc)
+        applicable = [w.multiplier for w in self.crawl_windows if w.is_active(now)]
+        return max(applicable) if applicable else 1.0
+
+    def is_path_disallowed(self, path: str) -> bool:
+        return any(path.startswith(prefix) for prefix in self.disallow_paths)
+
+
+def _minutes_since_midnight(hhmm: str) -> int:
+    hour_s, minute_s = hhmm.strip().split(":", 1)
+    hour, minute = int(hour_s), int(minute_s)
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError(f"invalid time of day: {hhmm!r}")
+    return hour * 60 + minute
 
 
 def parse_well_known(raw: bytes | str) -> SitePolicy:
@@ -100,22 +167,36 @@ def parse_well_known(raw: bytes | str) -> SitePolicy:
     default_obj = data.get("default")
     default = _rule(default_obj) if isinstance(default_obj, dict) else RateRule()
 
-    agents_obj = data.get("agents") if isinstance(data.get("agents"), dict) else {}
-    agents = {
-        name: _rule(obj)
-        for name, obj in agents_obj.items()
-        if isinstance(obj, dict)
-    }
+    def _agent_map(key: str) -> dict[str, RateRule]:
+        obj = data.get(key) if isinstance(data.get(key), dict) else {}
+        return {name: _rule(rule_obj) for name, rule_obj in obj.items() if isinstance(rule_obj, dict)}
+
+    agents = _agent_map("agents")
+    verified_agents = _agent_map("verified_agents")
 
     disallow = data.get("disallow_paths")
     disallow_paths = [p for p in disallow if isinstance(p, str)] if isinstance(disallow, list) else []
+
+    crawl_windows: list[CrawlWindow] = []
+    for w in data.get("crawl_windows") or []:
+        if not isinstance(w, dict):
+            continue
+        days = tuple(d for d in w.get("days", []) if isinstance(d, str) and d in _DAY_NAMES) if isinstance(w.get("days"), list) else ()
+        hours = w.get("hours") if isinstance(w.get("hours"), str) else None
+        multiplier = _as_float(w.get("multiplier"))
+        note = w.get("note") if isinstance(w.get("note"), str) else None
+        crawl_windows.append(
+            CrawlWindow(days=days, hours=hours, multiplier=multiplier if multiplier is not None else 1.0, note=note)
+        )
 
     return SitePolicy(
         version=str(data.get("version", SPEC_VERSION)),
         contact=data.get("contact") if isinstance(data.get("contact"), str) else None,
         default=default,
         agents=agents,
+        verified_agents=verified_agents,
         disallow_paths=disallow_paths,
+        crawl_windows=crawl_windows,
         source="well-known",
     )
 

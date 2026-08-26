@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ._structured_fields import parse_sf_dictionary
+
 _TOKEN_SAFE = "".maketrans({'"': "'", "\\": "/", "\n": " ", "\r": " ", ";": ","})
 
 
@@ -67,16 +69,19 @@ class AgentIdentity:
 
 
 def parse_header(value: str) -> dict[str, str]:
-    """Parse a Considerate-Agent header value back into a dict.
+    """Parse a Considerate-Agent header value back into a dict of strings.
 
-    Best-effort parser for site operators / middleware that want to read
-    the header rather than build one. Not used by the client itself.
+    For site operators / middleware that want to read the header rather
+    than build one (the client itself never needs to parse its own
+    header). Delegates to a real RFC 8941 Structured-Field-Value Dictionary
+    parser (`_structured_fields.py`) rather than a naive comma/equals split,
+    so a value containing an escaped quote or comma inside a quoted string
+    round-trips correctly. Non-string SF items (numbers, booleans, byte
+    sequences) are stringified, since every field this protocol defines is
+    string-valued — that's a convenience for callers, not a spec fallback
+    for a header that mixed in exotic types.
+
+    Raises ValueError on a header that isn't valid SF Dictionary syntax.
     """
-    result: dict[str, str] = {}
-    for part in value.split(","):
-        part = part.strip()
-        if "=" not in part:
-            continue
-        key, _, raw = part.partition("=")
-        result[key.strip()] = raw.strip().strip('"')
-    return result
+    parsed = parse_sf_dictionary(value)
+    return {k: (v if isinstance(v, str) else str(v)) for k, v in parsed.items()}

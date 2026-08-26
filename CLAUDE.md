@@ -29,6 +29,15 @@ with hatchling. Own `.venv/` in this directory — do not use the parent
   README/code as the reference implementation of it.
 
 ## Learnings & Notes
+- SPEC.md's protocol version (now 0.2) and the package's own semver
+  (`_version.py`, still 0.1.0) are tracked independently on purpose — the
+  wire format and the Python package don't have to release in lockstep.
+- `DomainState.base_ceiling` vs. `controller.config.max_rate`: base_ceiling
+  is what policy/inference set; `max_rate` is base_ceiling × the current
+  crawl_windows multiplier, recomputed every request via
+  `refresh_effective_ceiling()`. Never set `controller.config.max_rate`
+  directly outside that method or a window's effect gets silently baked in
+  permanently.
 - `cli.py` (`considerate inspect|probe <url>`): common flags (`--json`,
   `--contact`, `--agent-name`) are defined **only on the subparsers**, not
   the top-level parser — argparse's `_SubParsersAction` merges the whole

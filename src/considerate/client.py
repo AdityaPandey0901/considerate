@@ -49,7 +49,12 @@ class _SharedLogic:
     """
 
     def _new_domain_state(self, host: str) -> DomainState:
-        return DomainState(host=host, config=self.config, agent_name=self.identity.name)
+        return DomainState(
+            host=host,
+            config=self.config,
+            agent_name=self.identity.name,
+            verified_identity=self.verified_identity,
+        )
 
     def _touch_domain(self, host: str, state: DomainState) -> DomainState:
         """Insert/refresh `host` as most-recently-used, evicting the coldest
@@ -105,11 +110,18 @@ class ConsiderateClient(_SharedLogic):
         identity: AgentIdentity | None = None,
         config: ConsiderateConfig | None = None,
         on_event: EventCallback | None = None,
+        verified_identity: str | None = None,
         **httpx_kwargs: Any,
     ) -> None:
         self.identity = identity or _DEFAULT_IDENTITY
         self.config = config or ConsiderateConfig()
         self.on_event = on_event
+        # An identity confirmed by an out-of-band verification step (e.g. a
+        # Web Bot Auth signature check performed before considerate ever
+        # sees the request) — see SitePolicy.verified_agents / SPEC.md §6.
+        # considerate does not verify anything itself; this is purely "the
+        # caller already checked, here's what it resolved to."
+        self.verified_identity = verified_identity
         self._httpx = httpx.Client(**httpx_kwargs)
         self._domains: "OrderedDict[str, DomainState]" = OrderedDict()
         self._domains_lock = threading.Lock()
@@ -210,7 +222,11 @@ class ConsiderateClient(_SharedLogic):
             if not robots_parser.can_fetch(self.identity.name, url):
                 emit(self.on_event, "disallowed", host, url=url)
                 raise DisallowedError(url)
+        if state.is_path_disallowed(httpx.URL(url).path):
+            emit(self.on_event, "disallowed", host, url=url, source="considerate.json disallow_paths")
+            raise DisallowedError(url)
 
+        state.refresh_effective_ceiling()  # crawl_windows can change the ceiling between requests
         allowed, retry_after = state.breaker.check()
         if not allowed:
             emit(self.on_event, "circuit_open", host, reason=state.breaker.reason, retry_after=retry_after)
@@ -266,11 +282,13 @@ class AsyncConsiderateClient(_SharedLogic):
         identity: AgentIdentity | None = None,
         config: ConsiderateConfig | None = None,
         on_event: EventCallback | None = None,
+        verified_identity: str | None = None,
         **httpx_kwargs: Any,
     ) -> None:
         self.identity = identity or _DEFAULT_IDENTITY
         self.config = config or ConsiderateConfig()
         self.on_event = on_event
+        self.verified_identity = verified_identity
         self._httpx = httpx.AsyncClient(**httpx_kwargs)
         self._domains: "OrderedDict[str, DomainState]" = OrderedDict()
         self._domains_lock = asyncio.Lock()
@@ -368,7 +386,11 @@ class AsyncConsiderateClient(_SharedLogic):
             if not robots_parser.can_fetch(self.identity.name, url):
                 emit(self.on_event, "disallowed", host, url=url)
                 raise DisallowedError(url)
+        if state.is_path_disallowed(httpx.URL(url).path):
+            emit(self.on_event, "disallowed", host, url=url, source="considerate.json disallow_paths")
+            raise DisallowedError(url)
 
+        state.refresh_effective_ceiling()  # crawl_windows can change the ceiling between requests
         allowed, retry_after = state.breaker.check()
         if not allowed:
             emit(self.on_event, "circuit_open", host, reason=state.breaker.reason, retry_after=retry_after)

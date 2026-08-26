@@ -7,6 +7,7 @@ client, keyed by hostname, and is shared across sync/async paths — only the
 from __future__ import annotations
 
 import time
+from datetime import datetime
 
 from .breaker import CircuitBreaker
 from .config import ConsiderateConfig
@@ -23,10 +24,17 @@ _ROBUST_SERVER_TOKENS = ("cloudflare", "fastly", "akamai", "vercel", "cloudfront
 
 
 class DomainState:
-    def __init__(self, host: str, config: ConsiderateConfig, agent_name: str | None) -> None:
+    def __init__(
+        self,
+        host: str,
+        config: ConsiderateConfig,
+        agent_name: str | None,
+        verified_identity: str | None = None,
+    ) -> None:
         self.host = host
         self.config = config
         self.agent_name = agent_name
+        self.verified_identity = verified_identity
 
         self.policy: SitePolicy | None = None
         self.policy_fetched_at: float | None = None
@@ -38,6 +46,7 @@ class DomainState:
         ceiling = config.tier_ceilings.get(tier, config.tier_ceilings["standard"])
 
         self.controller = AimdController(initial_rate=initial_rate, burst=3, config=config.controller)
+        self.base_ceiling = ceiling  # before any crawl_windows multiplier
         self.controller.set_ceiling(ceiling)
         self.hard_ceiling = False  # True once an explicit site policy caps us
 
@@ -70,7 +79,7 @@ class DomainState:
         self.policy = policy
         self.policy_fetched_at = time.monotonic()
 
-        rule = policy.rule_for(self.agent_name)
+        rule = policy.rule_for(self.agent_name, self.verified_identity)
         rate = rule.requests_per_second
         if rate is None and rule.tier:
             rate = self.config.tier_rates.get(rule.tier)
@@ -78,13 +87,27 @@ class DomainState:
             rate = self.config.tier_rates[self.config.default_tier]
 
         self.controller.rate = min(self.controller.rate, rate) if self.calibrated else rate
-        self.controller.set_ceiling(rate)  # explicit policy is a hard ceiling
+        self.base_ceiling = rate  # explicit policy is a hard ceiling
         self.hard_ceiling = True
+        self.refresh_effective_ceiling()
 
         if rule.max_concurrent:
             self.max_concurrent = rule.max_concurrent
         if rule.burst:
             self.controller.capacity = max(1, rule.burst)
+
+    def refresh_effective_ceiling(self, now: datetime | None = None) -> None:
+        """Re-derive the controller's ceiling from `base_ceiling` and any
+        active `crawl_windows` multiplier. Cheap and side-effect-free beyond
+        the controller update, so callers can call this on every request —
+        a window opening or closing mid-run takes effect immediately rather
+        than only at the next policy re-fetch (which may be 24h away).
+        """
+        multiplier = self.policy.active_multiplier(now) if self.policy else 1.0
+        self.controller.set_ceiling(self.base_ceiling * multiplier)
+
+    def is_path_disallowed(self, path: str) -> bool:
+        return self.policy.is_path_disallowed(path) if self.policy else False
 
     def note_retry_after(self, seconds: float) -> None:
         """Record a `Retry-After`-derived floor. Only ever moves the floor
@@ -122,7 +145,8 @@ class DomainState:
             tier = "standard"
 
         ceiling = self.config.tier_ceilings.get(tier, self.config.tier_ceilings["standard"])
-        self.controller.set_ceiling(ceiling)
+        self.base_ceiling = ceiling
+        self.refresh_effective_ceiling()
         # Nudge the running rate toward the inferred tier's starting point
         # rather than snapping to it, so a lucky/unlucky first request can't
         # cause a sharp jump.

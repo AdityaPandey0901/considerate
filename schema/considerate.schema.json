@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/AdityaPandey0901/considerate/main/schema/considerate.schema.json",
+  "title": "Considerate site policy",
+  "description": "Schema for /.well-known/considerate.json — see SPEC.md section 2. Referenced by `considerate policy validate`.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "string" },
+    "contact": { "type": "string", "minLength": 1 },
+    "default": { "$ref": "#/$defs/rateRule" },
+    "agents": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/rateRule" }
+    },
+    "verified_agents": {
+      "type": "object",
+      "description": "Rate rules keyed by a Web Bot Auth-verified identity rather than a self-declared header name (experimental, v0.2 — see SPEC.md section 6).",
+      "additionalProperties": { "$ref": "#/$defs/rateRule" }
+    },
+    "disallow_paths": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^/" }
+    },
+    "crawl_windows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/crawlWindow" }
+    }
+  },
+  "$defs": {
+    "rateRule": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "requests_per_second": { "type": "number", "exclusiveMinimum": 0 },
+        "max_concurrent": { "type": "integer", "minimum": 1 },
+        "burst": { "type": "integer", "minimum": 1 },
+        "tier": { "enum": ["fragile", "standard", "robust"] },
+        "note": { "type": "string" }
+      }
+    },
+    "crawlWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "type": "array",
+          "items": { "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] }
+        },
+        "hours": {
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "description": "UTC, \"HH:MM-HH:MM\"; may wrap past midnight (e.g. \"22:00-06:00\")."
+        },
+        "multiplier": { "type": "number", "exclusiveMinimum": 0 },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

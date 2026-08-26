@@ -1,4 +1,4 @@
-# The Considerate Protocol — v0.1
+# The Considerate Protocol — v0.2
 
 Status: **Draft / MVP.** This describes what the `considerate` Python
 library implements today, written as a protocol rather than an API so any
@@ -82,9 +82,13 @@ faith. A compliant agent **MUST**:
 
 A site publishes, at `/.well-known/considerate.json`:
 
+A [JSON Schema](./schema/considerate.schema.json) is published alongside
+this spec — point your editor or CI at it, or run
+`considerate policy validate path/to/considerate.json`.
+
 ```jsonc
 {
-  "version": "0.1",
+  "version": "0.2",
   "contact": "mailto:ops@example.com",
   "default": {
     "requests_per_second": 0.5,
@@ -100,7 +104,11 @@ A site publishes, at `/.well-known/considerate.json`:
       "requests_per_second": 0.2,
       "note": "Unrecognized agents get a conservative default even below `default`."
     }
-  }
+  },
+  "disallow_paths": ["/admin", "/checkout"],
+  "crawl_windows": [
+    { "hours": "01:00-06:00", "multiplier": 3.0, "note": "Quietest time for us, UTC." }
+  ]
 }
 ```
 
@@ -108,10 +116,13 @@ A site publishes, at `/.well-known/considerate.json`:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `version` | string | Protocol version this document targets. `"0.1"` for this draft. |
+| `version` | string | Protocol version this document targets. `"0.2"` for this draft. |
 | `contact` | string | `mailto:`/`https:` URL for the site's operator. |
 | `default` | object | The rate rule applied when no request identifies itself, or identifies with a `name` not present in `agents`. |
 | `agents` | object | Map from an agent's declared `Considerate-Agent` `name` to a rate rule that overrides `default` for that agent specifically. A `"*"` key applies to any request that *does* send an identity header but doesn't match a more specific entry — distinct from `default`, which is the fallback for no header at all. |
+| `verified_agents` | object | **Experimental (v0.2).** Same shape as `agents`, but keyed by a cryptographically verified identity (e.g. a Web Bot Auth Signature Agent `client_id`) rather than the self-declared header `name`. A match here outranks even an exact `agents` name match — see §6. considerate performs no verification itself; a caller that has independently verified a request supplies the resolved identity via the client's `verified_identity` parameter. |
+| `disallow_paths` (v0.2) | array of strings | Path prefixes no agent should fetch, checked in addition to (not instead of) `robots.txt` `Disallow`. Exists here too because a site may want agent-specific policy without touching its search-engine-facing `robots.txt`. |
+| `crawl_windows` (v0.2) | array of objects | Time-based rate multipliers: `{days: [...], hours: "HH:MM-HH:MM", multiplier}`. All times UTC. `days` empty means every day; `hours` omitted means all day. When multiple windows are simultaneously active, the largest multiplier applies. Re-evaluated on every request, not just at policy-fetch time, so a window opening or closing mid-run takes effect immediately. |
 
 **Rate rule object:**
 
@@ -233,9 +244,12 @@ designed to be adopted alongside:
   fields, and a site that wants verified-identity rate policy should use
   it. The Considerate Protocol is intentionally the on-ramp below that:
   no keys, no registry, adoptable by a static-site blog in five minutes.
-  A natural v0.2 direction is letting a `considerate.json` `agents` entry
-  key off a Web Bot Auth-verified identity instead of (or in addition to)
-  the self-declared `name` — see Roadmap.
+  v0.2 added the `verified_agents` field (§2) so a `considerate.json` can
+  key a rate rule off a Web Bot Auth-verified identity instead of (or in
+  addition to) the self-declared `name` — considerate itself still does no
+  verification; a caller that has independently verified a request passes
+  the resolved identity in. Full interop (verifying the Signature Agent
+  Card automatically) remains on the Roadmap.
 - **`agents.txt`** (agents-txt.com and related proposals) — capability
   discovery for transactional agent interactions (payments, MCP
   endpoints, A2A cards). Complementary; a site can point to both files
@@ -248,7 +262,7 @@ designed to be adopted alongside:
 
 ## Roadmap
 
-Not in v0.1, listed here so the scope of the current implementation is
+Not in v0.2, listed here so the scope of the current implementation is
 explicit rather than implied:
 
 - **Shared fragility registry** — an opt-in, crowd-sourced cache so
@@ -259,10 +273,11 @@ explicit rather than implied:
 - **MCP server wrapper** — expose the client as an MCP tool so any
   MCP-compatible agent gets this behavior with no code, following the
   same "capability, not config" philosophy as the rest of the protocol.
-- **Web Bot Auth interop** — verified-identity-keyed policy entries, per
-  §6.
-- **`disallow_paths` / crawl-window fields** in the policy file (drafted
-  in early versions of this doc, deferred to keep v0.1's parser minimal).
+- **Full Web Bot Auth interop** — v0.2 added the `verified_agents` policy
+  field and a `verified_identity` client parameter (§2, §6), but
+  considerate performs no cryptographic verification itself; a real
+  integration (verifying a Signature Agent Card and resolving its
+  `client_id` automatically) is still open.
 - Submission of this document, revised with implementer feedback, as an
   Internet-Draft, and outreach to agent-framework maintainers (LangChain,
   CrewAI, browser-use) to adopt the header/behavior contract in §1
@@ -270,5 +285,13 @@ explicit rather than implied:
 
 ## Change log
 
+- **v0.2** — added `disallow_paths` (enforced in addition to `robots.txt`
+  `Disallow`) and `crawl_windows` (time-of-day/day-of-week rate
+  multipliers) to the policy file; added the experimental
+  `verified_agents` field and `verified_identity` client parameter for
+  Web Bot Auth interop; clarified that `Retry-After` is enforced as a hard
+  floor on the next request, independent of AIMD, matching §1.1's original
+  (previously unimplemented) requirement; published a JSON Schema for the
+  policy file.
 - **v0.1** (2026) — initial draft: `Considerate-Agent` header,
   `/.well-known/considerate.json`, AIMD controller, circuit breaker.

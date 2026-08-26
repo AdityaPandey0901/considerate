@@ -1,5 +1,5 @@
 {
-  "version": "0.1",
+  "version": "0.2",
   "contact": "mailto:ops@example.com",
   "default": {
     "requests_per_second": 0.5,
@@ -15,5 +15,13 @@
       "requests_per_second": 0.2,
       "note": "Any other agent that identifies itself gets a conservative rate."
     }
-  }
+  },
+  "disallow_paths": ["/admin", "/checkout"],
+  "crawl_windows": [
+    {
+      "hours": "01:00-06:00",
+      "multiplier": 3.0,
+      "note": "Overnight (UTC) traffic is fine at 3x — quietest time for us."
+    }
+  ]
 }
