@@ -26,6 +26,9 @@ class ConsiderateConfig:
     fetch_well_known: bool = True
     policy_cache_ttl: float = 24 * 3600.0
     max_concurrent_per_domain: int = 2
+    max_tracked_domains: int = 2000  # LRU-evict the coldest domain past this
+    meta_fetch_max_bytes: int = 1_000_000  # cap on /.well-known + robots.txt fetches
+    max_redirects: int = 5  # redirect hops followed *through* considerate's own metering
 
     ttfb_fragile_threshold: float = 0.8  # seconds
     infra_header_hint = ("cf-ray", "x-served-by", "x-cache", "via", "x-fastly-request-id")

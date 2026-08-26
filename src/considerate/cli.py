@@ -51,7 +51,7 @@ def _domain_report(client: ConsiderateClient, host: str) -> dict:
         "hard_ceiling": state.hard_ceiling,
         "current_rate_req_per_s": round(state.controller.rate, 4),
         "ceiling_req_per_s": round(state.controller.config.max_rate, 4),
-        "max_concurrent": state.semaphore._value if hasattr(state.semaphore, "_value") else None,
+        "max_concurrent": state.max_concurrent,
         "declared_rate_for_this_agent": rule.requests_per_second if rule else None,
         "circuit_state": state.breaker.state.value,
     }

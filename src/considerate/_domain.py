@@ -6,7 +6,6 @@ client, keyed by hostname, and is shared across sync/async paths — only the
 
 from __future__ import annotations
 
-import threading
 import time
 
 from .breaker import CircuitBreaker
@@ -43,7 +42,21 @@ class DomainState:
         self.hard_ceiling = False  # True once an explicit site policy caps us
 
         self.breaker = CircuitBreaker(config=config.breaker)
-        self.semaphore = threading.Semaphore(config.max_concurrent_per_domain)
+
+        # Concurrency limit as a plain int, not a live primitive: the sync
+        # and async clients each own their own semaphore type (threading vs.
+        # asyncio) keyed off this value, rather than DomainState owning one
+        # concrete implementation neither client type actually wants (see
+        # client.py's `_get_semaphore`). This also means changing the limit
+        # (via apply_policy) can't silently discard in-flight holders of an
+        # old semaphore object.
+        self.max_concurrent = config.max_concurrent_per_domain
+
+        # A hard floor on the next request time to this domain, set from a
+        # `Retry-After` response header (SPEC.md §1.1: "MUST honor
+        # Retry-After as a floor, not a suggestion") — independent of, and
+        # enforced in addition to, the AIMD token bucket's own pacing.
+        self.retry_not_before: float | None = None
 
     # -- policy application ---------------------------------------------------
 
@@ -69,9 +82,23 @@ class DomainState:
         self.hard_ceiling = True
 
         if rule.max_concurrent:
-            self.semaphore = threading.Semaphore(rule.max_concurrent)
+            self.max_concurrent = rule.max_concurrent
         if rule.burst:
             self.controller.capacity = max(1, rule.burst)
+
+    def note_retry_after(self, seconds: float) -> None:
+        """Record a `Retry-After`-derived floor. Only ever moves the floor
+        later, never earlier — a fresh, longer Retry-After should extend the
+        pause; a stale, already-elapsed one from an earlier response
+        shouldn't shorten a floor a *later* response just set.
+        """
+        candidate = time.monotonic() + seconds
+        self.retry_not_before = max(self.retry_not_before or 0.0, candidate)
+
+    def retry_wait_remaining(self) -> float:
+        if self.retry_not_before is None:
+            return 0.0
+        return max(0.0, self.retry_not_before - time.monotonic())
 
     def apply_inference(self, ttfb: float, headers) -> None:
         """Refine the initial tier guess from the very first real request's
