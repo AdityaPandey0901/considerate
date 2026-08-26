@@ -29,6 +29,12 @@ with hatchling. Own `.venv/` in this directory — do not use the parent
   README/code as the reference implementation of it.
 
 ## Learnings & Notes
+- `cli.py` (`considerate inspect|probe <url>`): common flags (`--json`,
+  `--contact`, `--agent-name`) are defined **only on the subparsers**, not
+  the top-level parser — argparse's `_SubParsersAction` merges the whole
+  subnamespace back onto the parent on invocation, which silently clobbers
+  a same-dest flag given *before* the subcommand with the subparser's
+  default. Flags go after the subcommand/URL only.
 - `hatchling` build backend requires `README.md` to exist before `pip
   install -e .` will even resolve metadata — create it before first install.
 - `robotparser.can_fetch(agent, url)` accepts a full URL and internally

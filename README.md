@@ -121,6 +121,40 @@ pip install considerate          # core: sync + async clients
 pip install considerate[yaml]    # + considerate.yaml config file support
 ```
 
+## Try it on a real URL from the command line
+
+No Python required. `pip install considerate` also installs a `considerate` CLI:
+
+```bash
+# One request: what policy did we find, what tier did we infer, what's the current rate?
+considerate inspect https://example.com/some/page
+
+# Several requests to the same URL: watch AIMD and the circuit breaker react live
+considerate probe https://example.com/some/page --requests 8
+
+# Machine-readable
+considerate inspect https://example.com/ --json
+```
+
+`probe` is safe to point at a real site: it's throttled by the exact same
+rate limiter this library exists to provide, so it backs itself off long
+before it could do the kind of damage it's designed to prevent. `inspect`
+sends exactly one request — the one you asked for — and reports what it saw:
+
+```
+considerate inspect — https://example.com/
+  agent identity: name="considerate-cli", version="0.1.0", intent="research"
+
+  request:            HTTP 200 in 94ms
+  policy source:      none (inferred only)
+  current rate:       2.0 req/s (soft, inferred — may climb)
+  ceiling:            10.0 req/s
+  circuit breaker:    closed
+```
+
+If the URL is blocked by the site's own `robots.txt`, `inspect` reports that
+and exits non-zero without sending the request at all.
+
 ## Quickstart
 
 ```python
