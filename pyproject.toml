@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "considerate"
+version = "0.1.0"
+description = "A drop-in, respectful rate-limiting layer for agents that fetch or scrape the web — protects the site being visited, not just the agent visiting it."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "Aditya Pandey" }]
+keywords = [
+    "agents",
+    "web-scraping",
+    "rate-limiting",
+    "robots.txt",
+    "ai-safety",
+    "httpx",
+    "circuit-breaker",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = ["httpx>=0.24"]
+
+[project.optional-dependencies]
+yaml = ["pyyaml>=6.0"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "pyyaml>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/example/considerate"
+Specification = "https://github.com/example/considerate/blob/main/SPEC.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/considerate"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

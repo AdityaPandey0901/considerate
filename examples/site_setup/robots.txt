@@ -1,0 +1,7 @@
+# Fallback for agents that don't yet check /.well-known/considerate.json.
+# considerate reads Crawl-delay as "1 / delay" requests/sec when no explicit
+# policy file is present.
+User-agent: *
+Crawl-delay: 2
+Disallow: /admin
+Disallow: /checkout

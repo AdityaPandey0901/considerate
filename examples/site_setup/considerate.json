@@ -1,0 +1,19 @@
+{
+  "version": "0.1",
+  "contact": "mailto:ops@example.com",
+  "default": {
+    "requests_per_second": 0.5,
+    "max_concurrent": 1,
+    "burst": 2
+  },
+  "agents": {
+    "MyResearchBot": {
+      "requests_per_second": 2.0,
+      "note": "Emailed us directly, known good actor — higher trust limit."
+    },
+    "*": {
+      "requests_per_second": 0.2,
+      "note": "Any other agent that identifies itself gets a conservative rate."
+    }
+  }
+}

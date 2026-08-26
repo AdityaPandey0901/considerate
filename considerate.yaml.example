@@ -1,0 +1,17 @@
+# Copy to considerate.yaml and load with ConsiderateConfig.from_yaml(...).
+# Every field is optional — considerate protects sites with zero config.
+
+default_tier: standard  # fragile | standard | robust
+
+overrides:
+  small-business-site.com: fragile
+  my-companys-cdn-backed-app.com: robust
+
+respect_robots_txt: true      # honor Disallow + Crawl-delay
+fetch_well_known: true        # check /.well-known/considerate.json per domain
+max_concurrent_per_domain: 2
+
+circuit_breaker:
+  error_threshold: 0.2        # open the circuit at >=20% error rate
+  consecutive_failures: 3     # ...or after 3 failures in a row
+  cooldown_seconds: 60        # wait this long before a single probe request
